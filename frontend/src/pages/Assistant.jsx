@@ -9,10 +9,10 @@ import { toast } from "sonner";
 const SUGGESTIONS = [
   "Bu ay vadesi gelen toplam borç ne kadar?",
   "VICTORIA için VERGİ borcu ekle 50.000 USD vade 30 Mart 2026",
+  "VICTORIA gemisinin hesap özetini PDF olarak emaile gönder",
+  "YAPI KREDİ'den DENİZBANK'a 5000 USD virman yap",
   "Vadesi geçmiş borçların özetini emailime gönder",
   "Hangi gemi en yüksek açık borca sahip?",
-  "MORNING için MALZEME borcu 12.000 EUR vade gelecek ay sonu",
-  "Son 12 ay nakit akışı nasıl?",
 ];
 
 const ACTION_LABELS = {
@@ -20,6 +20,10 @@ const ACTION_LABELS = {
   create_payment: { label: "Ödeme/Tahsil Kaydet", icon: "💳", color: "#1F8942" },
   mark_payable_paid: { label: "Borcu Ödendi İşaretle", icon: "✓", color: "#1F8942" },
   send_summary_email: { label: "Özet Email Gönder", icon: "✉", color: "#0062CC" },
+  update_payable: { label: "Borcu Güncelle", icon: "✎", color: "#B26205" },
+  delete_payable: { label: "Borcu Sil", icon: "🗑", color: "#D92D20" },
+  transfer_between_banks: { label: "Banka Virmanı", icon: "↔", color: "#0062CC" },
+  generate_pdf_statement: { label: "PDF Hesap Özeti", icon: "📄", color: "#1F8942" },
 };
 
 export default function Assistant() {
@@ -82,18 +86,32 @@ export default function Assistant() {
       const { data } = await api.post("/ai/execute-action", { action_id: actionId, confirmed });
       if (data.ok) {
         toast.success(confirmed ? "Aksiyon gerçekleştirildi" : "Aksiyon iptal edildi");
-        // Mesaj listesine result ekle (eğer yeni mesaj backend'de oluşturulduysa)
-        if (data.message) {
-          setMessages((m) => [...m, { role: "assistant", content: data.message, message_type: "action_result", created_at: new Date().toISOString() }]);
-        } else {
-          setMessages((m) => [...m, { role: "assistant", content: "Aksiyon iptal edildi.", message_type: "text", created_at: new Date().toISOString() }]);
+        // Mesaj listesine result ekle
+        let resultContent = data.message || (confirmed ? "Aksiyon tamamlandı" : "Aksiyon iptal edildi");
+        if (data.download_url) {
+          // PDF / dosya download link'i — kullanıcı tıklayıp indirsin
+          resultContent += `\n\n📥 [PDF'i indir](${data.download_url})`;
         }
-        // Mesajı action_proposal'dan executed/rejected'e güncelle
+        setMessages((m) => [...m, { role: "assistant", content: resultContent, message_type: "action_result", download_url: data.download_url, created_at: new Date().toISOString() }]);
+        // Update status badge
         setMessages((m) => m.map(msg => msg.action_id === actionId ? {...msg, action_status: confirmed ? "completed" : "rejected"} : msg));
       } else {
         toast.error(data.error || "Aksiyon başarısız");
       }
     } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const downloadFromUrl = (url) => {
+    const BACKEND = process.env.REACT_APP_BACKEND_URL;
+    const token = localStorage.getItem("ey_token");
+    fetch(`${BACKEND}${url}`, { headers: { Authorization: `Bearer ${token}` }, credentials: "include" })
+      .then(r => r.blob())
+      .then(blob => {
+        const u = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = u; a.download = "hesap-ozeti.pdf"; a.click();
+        URL.revokeObjectURL(u);
+      });
   };
 
   const removeSession = async (sid) => {
@@ -174,7 +192,7 @@ export default function Assistant() {
               </div>
             ) : (
               messages.map((m, i) => (
-                <Message key={i} msg={m} onExecute={executeAction}/>
+                <Message key={i} msg={m} onExecute={executeAction} onDownload={downloadFromUrl}/>
               ))
             )}
             {sending && (
@@ -223,7 +241,7 @@ export default function Assistant() {
   );
 }
 
-const Message = ({ msg, onExecute }) => {
+const Message = ({ msg, onExecute, onDownload }) => {
   const isUser = msg.role === "user";
   const isAction = msg.message_type === "action_proposal";
 
@@ -238,6 +256,15 @@ const Message = ({ msg, onExecute }) => {
       </div>
       <div className={`max-w-[80%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${isUser ? "bg-[#111111] text-white rounded-tr-md" : "bg-[#F5F5F7] text-[#1D1D1F] rounded-tl-md"}`}>
         <pre className="font-sans whitespace-pre-wrap break-words">{msg.content}</pre>
+        {msg.download_url && (
+          <button
+            data-testid="btn-download-pdf"
+            onClick={() => onDownload?.(msg.download_url)}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white border border-[#E5E5EA] text-xs font-medium text-[#1D1D1F] hover:bg-[#FAFAFA] transition"
+          >
+            📥 PDF'i İndir
+          </button>
+        )}
       </div>
     </div>
   );

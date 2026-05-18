@@ -105,6 +105,14 @@ Desteklenen aksiyonlar:
    params: search (vendor veya açıklama içinde geçen kelime ile arar) VEYA payable_id
 4. **send_summary_email** — Kullanıcının email adresine özet gönder
    params: to_self (true), scope (örn: "vadesi_gecmis", "bu_ay_vadesi", "gemi:VICTORIA", "tedarikci:HEMPEL")
+5. **update_payable** — Mevcut borcu güncelle
+   params: search VEYA payable_id (zorunlu) + güncellenecek alanlar (vendor, ship, expense_type, due_date, original_amount, currency, status, description, country, armator)
+6. **delete_payable** — Borcu sil (bağlı ödeme varsa İPTAL'e alır)
+   params: search VEYA payable_id
+7. **transfer_between_banks** — Bankalar/kasalar arası virman
+   params: from_bank (zorunlu), to_bank (zorunlu), amount (zorunlu sayı), currency, date (YYYY-MM-DD), description
+8. **generate_pdf_statement** — PDF hesap özeti üret ve emaile gönder
+   params: scope_type ("vendor" veya "ship"), scope_value (örn: "HEMPEL BOYA" veya "VICTORIA")
 
 Aksiyon JSON'ı dönerken:
 - Eksik zorunlu alan varsa AKSİYON DEĞİL — normal dilde "şu bilgi eksik, paylaşır mısın?" diye sor
