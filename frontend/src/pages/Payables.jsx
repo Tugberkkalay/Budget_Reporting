@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fmtUSD, fmtDate, formatApiError } from "@/lib/api";
 import { Page, Card, StatusBadge, EmptyState } from "@/components/Primitives";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Search, Filter, ArrowDownToLine, ArrowUpFromLine, Loader2, Trash2, CreditCard, X } from "lucide-react";
+import { Plus, Search, Filter, ArrowDownToLine, ArrowUpFromLine, Loader2, Trash2, CreditCard, X, Paperclip, Sparkles, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
 
 /**
@@ -190,6 +190,20 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
 
           {editing && (
             <div className="mt-6 space-y-4">
+              {/* OCR Action */}
+              {!editing.id && (
+                <OCRBlock onParsed={(parsed) => setEditing({
+                  ...editing,
+                  vendor: parsed.vendor || editing.vendor,
+                  description: parsed.description || editing.description,
+                  due_date: parsed.due_date || editing.due_date,
+                  order_date: parsed.invoice_date || editing.order_date,
+                  original_amount: parsed.original_amount ?? editing.original_amount,
+                  currency: parsed.currency || editing.currency,
+                  country: parsed.country || editing.country,
+                })}/>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Sipariş Tarihi">
                   <Input data-testid="input-order-date" type="date" value={editing.order_date?.slice(0,10) || ""} onChange={(e) => setEditing({...editing, order_date: e.target.value})}/>
@@ -244,6 +258,9 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
                 <SelectField testid="select-status" value={editing.status} onChange={(v) => setEditing({...editing, status: v})} options={masters.statuses.map(s => s.name)}/>
               </Field>
 
+              {/* Dosya Ekleri (sadece edit modunda — id varsa) */}
+              {editing.id && <AttachmentsBlock resource="payable" resourceId={editing.id}/>}
+
               <div className="flex gap-2 pt-4 border-t border-[#E5E5EA]">
                 <Button data-testid="btn-save" onClick={save} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg flex-1">
                   {editing.id ? "Güncelle" : "Kaydet"}
@@ -273,3 +290,150 @@ const SelectField = ({ value, onChange, options, testid }) => (
     </SelectContent>
   </Select>
 );
+
+const OCRBlock = ({ onParsed }) => {
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef(null);
+
+  const handle = async (file) => {
+    setBusy(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const { data } = await api.post("/ocr/invoice", form, { headers: { "Content-Type": "multipart/form-data" } });
+      if (data?.error) {
+        toast.error("OCR hatası: " + data.error);
+      } else {
+        onParsed(data || {});
+        toast.success("Fatura okundu — form alanları dolduruldu");
+      }
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="rounded-xl border border-dashed border-[#E5E5EA] bg-gradient-to-br from-[#FAFAFA] to-white p-4">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#111111] to-[#2C2C2E] grid place-items-center shrink-0">
+          <Sparkles className="w-4 h-4 text-white" strokeWidth={1.5}/>
+        </div>
+        <div className="flex-1">
+          <div className="text-sm font-medium text-[#1D1D1F]">Fatura görselinden otomatik doldur</div>
+          <div className="text-xs text-[#86868B] mt-0.5">PDF/JPG/PNG yükle — AI ile tedarikçi, tutar, vade okunsun</div>
+        </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && handle(e.target.files[0])}
+        />
+        <Button
+          data-testid="btn-ocr"
+          onClick={() => inputRef.current?.click()}
+          disabled={busy}
+          variant="outline"
+          className="rounded-lg gap-1.5 h-9 shrink-0"
+        >
+          {busy ? <Loader2 className="w-4 h-4 animate-spin"/> : <Sparkles className="w-4 h-4"/>}
+          {busy ? "Okunuyor..." : "OCR ile Doldur"}
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+const AttachmentsBlock = ({ resource, resourceId }) => {
+  const [files, setFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
+  const fileInput = useRef(null);
+
+  const load = async () => {
+    try {
+      const { data } = await api.get(`/uploads/by-resource/${resource}/${resourceId}`);
+      setFiles(data);
+    } catch {}
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [resourceId]);
+
+  const handleUpload = async (file) => {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("attached_to", resource);
+      form.append("attached_id", resourceId);
+      await api.post("/uploads", form, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success("Dosya yüklendi");
+      load();
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setUploading(false); }
+  };
+
+  const removeFile = async (id) => {
+    if (!window.confirm("Bu dosya silinsin mi?")) return;
+    await api.delete(`/uploads/${id}`);
+    toast.success("Silindi");
+    load();
+  };
+
+  const downloadFile = (id, name) => {
+    const BACKEND = process.env.REACT_APP_BACKEND_URL;
+    const token = localStorage.getItem("ey_token");
+    // Token'lı download için fetch + blob
+    fetch(`${BACKEND}/api/uploads/${id}`, { headers: { Authorization: `Bearer ${token}` }, credentials: "include" })
+      .then(r => r.blob())
+      .then(blob => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = name; a.click();
+        URL.revokeObjectURL(url);
+      });
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="text-[11px] font-semibold uppercase tracking-wider text-[#86868B]">Ekler ({files.length})</Label>
+        <input
+          ref={fileInput}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
+          className="hidden"
+          onChange={(e) => e.target.files?.[0] && handleUpload(e.target.files[0])}
+        />
+        <Button
+          data-testid="btn-attach"
+          onClick={() => fileInput.current?.click()}
+          disabled={uploading}
+          variant="outline"
+          size="sm"
+          className="h-7 rounded-md text-xs gap-1.5"
+        >
+          {uploading ? <Loader2 className="w-3 h-3 animate-spin"/> : <Paperclip className="w-3 h-3"/>}
+          Dosya Ekle
+        </Button>
+      </div>
+      {files.length === 0 ? (
+        <div className="text-xs text-[#86868B] italic">Henüz ek yok</div>
+      ) : (
+        <div className="space-y-1.5">
+          {files.map((f) => (
+            <div key={f.id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F5F5F7] text-xs">
+              <FileText className="w-3.5 h-3.5 text-[#86868B] shrink-0"/>
+              <span className="truncate flex-1 text-[#1D1D1F]">{f.filename}</span>
+              <span className="text-[#86868B]">{(f.size / 1024).toFixed(0)} KB</span>
+              <button onClick={() => downloadFile(f.id, f.filename)} className="p-1 rounded hover:bg-white text-[#86868B] hover:text-[#1D1D1F]">
+                <Download className="w-3.5 h-3.5"/>
+              </button>
+              <button onClick={() => removeFile(f.id)} className="p-1 rounded hover:bg-[#FFEBEA] text-[#86868B] hover:text-[#D92D20]">
+                <Trash2 className="w-3.5 h-3.5"/>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};

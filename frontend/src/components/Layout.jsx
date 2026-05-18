@@ -2,7 +2,7 @@ import { Link, NavLink, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, ArrowDownToLine, ArrowUpFromLine, CreditCard, Wallet,
   Users, FileBarChart2, BellRing, Database, ShieldCheck, Settings,
-  LogOut, Search, ChevronLeft, ChevronRight,
+  LogOut, Search, ChevronLeft, ChevronRight, Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState, useEffect } from "react";
@@ -16,6 +16,7 @@ const NAV = [
   { to: "/cash-bank", label: "Kasa & Banka", icon: Wallet },
   { to: "/current-accounts", label: "Cari Hesaplar", icon: Users },
   { to: "/reports", label: "Raporlar", icon: FileBarChart2 },
+  { to: "/assistant", label: "AI Asistan", icon: Sparkles },
   { to: "/reminders", label: "Hatırlatmalar", icon: BellRing },
   { to: "/master-data", label: "Tanımlamalar", icon: Database },
 ];

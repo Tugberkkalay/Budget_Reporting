@@ -15,6 +15,7 @@ import Reminders from "@/pages/Reminders";
 import MasterData from "@/pages/MasterData";
 import Users from "@/pages/Users";
 import Settings from "@/pages/Settings";
+import Assistant from "@/pages/Assistant";
 import { Loader2 } from "lucide-react";
 
 const Protected = ({ children, adminOnly = false }) => {
@@ -46,6 +47,7 @@ function App() {
               <Route path="cash-bank" element={<CashAndBank />} />
               <Route path="current-accounts" element={<CurrentAccounts />} />
               <Route path="reports" element={<Reports />} />
+              <Route path="assistant" element={<Assistant />} />
               <Route path="reminders" element={<Reminders />} />
               <Route path="master-data" element={<MasterData />} />
               <Route path="users" element={<Protected adminOnly><Users /></Protected>} />

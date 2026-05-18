@@ -20,6 +20,13 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from auth_utils import hash_password, verify_password, create_access_token, decode_token
 from email_service import send_email, send_password_reset, send_payment_reminder
 from seed_loader import seed_all, ensure_indexes
+from ai_service import ocr_invoice, chat_with_assistant
+from fx_service import update_fx_in_db
+
+import aiofiles
+from fastapi import UploadFile, File, Form
+from fastapi.responses import FileResponse
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 # ============================================================
 # Setup
@@ -903,10 +910,323 @@ async def fx_history(code: Optional[str] = None, user: dict = Depends(get_curren
     return await db.fx_rates.find(q, {"_id": 0}).sort("date", -1).to_list(500)
 
 
+@api.post("/fx/refresh")
+async def refresh_fx(user: dict = Depends(get_current_user)):
+    """TCMB'den canlı kur çek + DB'yi güncelle."""
+    result = await update_fx_in_db(db)
+    await write_audit(db, user, "refresh", "fx", meta=result)
+    return result
+
+
+@api.get("/fx/on-date")
+async def fx_on_date(code: str, date: str, user: dict = Depends(get_current_user)):
+    """Belirli bir tarihteki kuru getir (kur sabitleme için)."""
+    # Önce o tarihte var mı?
+    rec = await db.fx_rates.find_one({"code": code, "date": {"$regex": f"^{date[:10]}"}}, {"_id": 0})
+    if rec:
+        return {"code": code, "date": rec.get("date"), "rate_to_tl": rec.get("rate_to_tl"), "source": "archive"}
+    # Yoksa güncel currencies'tan döndür
+    cur = await db.currencies.find_one({"code": code}, {"_id": 0})
+    if cur:
+        return {"code": code, "date": cur.get("last_updated"), "rate_to_tl": cur.get("rate_to_tl"), "source": "latest"}
+    return {"code": code, "date": None, "rate_to_tl": 0, "source": "none"}
+
+
+# ============================================================
+# FILE UPLOADS — Fatura/Dekont eklemek için
+# ============================================================
+UPLOAD_DIR = Path(os.environ.get("UPLOAD_DIR", "/app/backend/uploads"))
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+ALLOWED_MIMES = {"image/jpeg", "image/jpg", "image/png", "image/webp", "application/pdf"}
+MIME_EXT = {"image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf"}
+
+
+@api.post("/uploads")
+async def upload_file(
+    file: UploadFile = File(...),
+    attached_to: Optional[str] = Form(None),  # "payable" / "payment" / "general"
+    attached_id: Optional[str] = Form(None),
+    user: dict = Depends(get_current_user),
+):
+    if file.content_type not in ALLOWED_MIMES:
+        raise HTTPException(status_code=400, detail=f"Desteklenmeyen format: {file.content_type}. PDF, JPG, PNG, WEBP kabul edilir.")
+    ext = MIME_EXT.get(file.content_type, "bin")
+    fid = _uid()
+    fname = f"{fid}.{ext}"
+    fpath = UPLOAD_DIR / fname
+    contents = await file.read()
+    if len(contents) > 15 * 1024 * 1024:  # 15MB
+        raise HTTPException(status_code=400, detail="Dosya çok büyük (max 15MB)")
+    async with aiofiles.open(fpath, "wb") as f:
+        await f.write(contents)
+    doc = {
+        "id": fid,
+        "filename": file.filename,
+        "stored_as": fname,
+        "mime": file.content_type,
+        "size": len(contents),
+        "attached_to": attached_to,
+        "attached_id": attached_id,
+        "uploaded_by": user["email"],
+        "created_at": _now(),
+    }
+    await db.uploads.insert_one(doc)
+    # İlgili borç/ödemeye dosya referansını ekle
+    if attached_to == "payable" and attached_id:
+        await db.payables.update_one({"id": attached_id}, {"$push": {"attachments": fid}})
+    elif attached_to == "payment" and attached_id:
+        await db.payments.update_one({"id": attached_id}, {"$push": {"attachments": fid}})
+    await write_audit(db, user, "upload", "file", fid, {"filename": file.filename, "attached_to": attached_to})
+    doc.pop("_id", None)
+    return doc
+
+
+@api.get("/uploads/{file_id}")
+async def get_upload(file_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.uploads.find_one({"id": file_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    fpath = UPLOAD_DIR / doc["stored_as"]
+    if not fpath.exists():
+        raise HTTPException(status_code=404, detail="Dosya diskte yok")
+    return FileResponse(str(fpath), media_type=doc.get("mime"), filename=doc.get("filename"))
+
+
+@api.get("/uploads/by-resource/{resource}/{resource_id}")
+async def uploads_by_resource(resource: str, resource_id: str, user: dict = Depends(get_current_user)):
+    items = await db.uploads.find({"attached_to": resource, "attached_id": resource_id}, {"_id": 0}).to_list(50)
+    return items
+
+
+@api.delete("/uploads/{file_id}")
+async def delete_upload(file_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.uploads.find_one({"id": file_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Dosya yok")
+    fpath = UPLOAD_DIR / doc["stored_as"]
+    if fpath.exists():
+        try: fpath.unlink()
+        except Exception: pass
+    await db.uploads.delete_one({"id": file_id})
+    # İlgili koleksiyondan da pull et
+    if doc.get("attached_to") == "payable" and doc.get("attached_id"):
+        await db.payables.update_one({"id": doc["attached_id"]}, {"$pull": {"attachments": file_id}})
+    elif doc.get("attached_to") == "payment" and doc.get("attached_id"):
+        await db.payments.update_one({"id": doc["attached_id"]}, {"$pull": {"attachments": file_id}})
+    await write_audit(db, user, "delete", "file", file_id)
+    return {"ok": True}
+
+
+# ============================================================
+# OCR — Fatura okuma
+# ============================================================
+@api.post("/ocr/invoice")
+async def ocr_invoice_endpoint(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if file.content_type not in {"image/jpeg", "image/png", "image/webp", "application/pdf"}:
+        raise HTTPException(status_code=400, detail="JPG/PNG/WEBP/PDF dosyası gerekli")
+    # Geçici diske yaz
+    ext = MIME_EXT.get(file.content_type, "jpg")
+    tmp_path = UPLOAD_DIR / f"ocr_tmp_{_uid()}.{ext}"
+    contents = await file.read()
+    async with aiofiles.open(tmp_path, "wb") as f:
+        await f.write(contents)
+    try:
+        parsed = await ocr_invoice(str(tmp_path), file.content_type)
+        await write_audit(db, user, "ocr", "invoice", meta={"vendor": parsed.get("vendor")})
+        return parsed
+    finally:
+        try: tmp_path.unlink()
+        except Exception: pass
+
+
+# ============================================================
+# AI ASSISTANT — Function-calling pattern (context-injected)
+# ============================================================
+async def _build_assistant_context() -> dict:
+    """Asistana sunulacak güncel finansal veriyi MongoDB'den topla."""
+    today = datetime.now(timezone.utc).date()
+    today_iso = today.isoformat()
+    week = (today + timedelta(days=7)).isoformat()
+    month = (today + timedelta(days=30)).isoformat()
+
+    # KPI
+    open_p = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+    open_r = await db.payables.aggregate([
+        {"$match": {"kind": "RECEIVABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+    overdue = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}, "due_date": {"$lt": today_iso}}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+    week_due = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}, "due_date": {"$gte": today_iso, "$lte": week}}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+    month_due = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}, "due_date": {"$gte": today_iso, "$lte": month}}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+    paid_total = await db.payments.aggregate([
+        {"$match": {"type": "TEDİYE"}},
+        {"$group": {"_id": None, "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}}
+    ]).to_list(1)
+
+    def g(r):
+        if r and r[0]: return {"total": float(r[0].get("total", 0) or 0), "count": int(r[0].get("count", 0) or 0)}
+        return {"total": 0, "count": 0}
+
+    # Gemi/şirket/masraf
+    by_ship = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}}},
+        {"$group": {"_id": "$ship", "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}},
+        {"$sort": {"total": -1}}, {"$limit": 15}
+    ]).to_list(20)
+    by_company = await db.payments.aggregate([
+        {"$match": {"type": "TEDİYE"}},
+        {"$group": {"_id": "$paying_company", "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}},
+        {"$sort": {"total": -1}}, {"$limit": 15}
+    ]).to_list(20)
+    by_expense = await db.payables.aggregate([
+        {"$match": {"kind": "PAYABLE"}},
+        {"$group": {"_id": "$expense_type", "total": {"$sum": "$usd_amount"}}},
+        {"$sort": {"total": -1}}, {"$limit": 15}
+    ]).to_list(20)
+    top_vendors = await db.payments.aggregate([
+        {"$match": {"type": "TEDİYE"}},
+        {"$group": {"_id": "$vendor", "total": {"$sum": "$usd_amount"}, "count": {"$sum": 1}}},
+        {"$sort": {"total": -1}}, {"$limit": 15}
+    ]).to_list(20)
+
+    # Yaşlandırma
+    aging_raw = await db.payables.find(
+        {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}, "due_date": {"$ne": None}},
+        {"_id": 0, "due_date": 1, "usd_amount": 1}
+    ).to_list(5000)
+    buckets = {"0-30": [0, 0], "31-60": [0, 0], "61-90": [0, 0], "90+": [0, 0]}
+    for p in aging_raw:
+        try: due = datetime.fromisoformat(p["due_date"]).date()
+        except Exception: continue
+        days = (today - due).days
+        amt = float(p.get("usd_amount", 0) or 0)
+        if days <= 30: buckets["0-30"][0] += amt; buckets["0-30"][1] += 1
+        elif days <= 60: buckets["31-60"][0] += amt; buckets["31-60"][1] += 1
+        elif days <= 90: buckets["61-90"][0] += amt; buckets["61-90"][1] += 1
+        else: buckets["90+"][0] += amt; buckets["90+"][1] += 1
+
+    upcoming = await db.payables.find({
+        "kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]},
+        "due_date": {"$gte": today_iso, "$lte": month}
+    }, {"_id": 0}).sort("due_date", 1).to_list(20)
+
+    recent_payments = await db.payments.find({}, {"_id": 0}).sort("created_at", -1).to_list(25)
+
+    cashflow = await db.payments.aggregate([
+        {"$match": {"date": {"$ne": None}}},
+        {"$addFields": {"_d": {"$dateFromString": {"dateString": "$date", "onError": None}}}},
+        {"$match": {"_d": {"$ne": None}}},
+        {"$group": {"_id": {"y": {"$year": "$_d"}, "m": {"$month": "$_d"}, "t": "$type"}, "total": {"$sum": "$usd_amount"}}},
+        {"$sort": {"_id.y": 1, "_id.m": 1}}
+    ]).to_list(200)
+    cf_map = {}
+    for r in cashflow:
+        k = f"{r['_id']['y']:04d}-{r['_id']['m']:02d}"
+        cf_map.setdefault(k, {"month": k, "TEDİYE": 0, "TAHSİL": 0})
+        cf_map[k][r['_id']['t']] = float(r["total"] or 0)
+    monthly_cashflow = list(cf_map.values())[-12:]
+
+    fx_latest = await db.currencies.find({}, {"_id": 0}).to_list(20)
+
+    by_currency = await db.payables.aggregate([
+        {"$group": {
+            "_id": "$currency",
+            "borç": {"$sum": {"$cond": [{"$eq": ["$kind", "PAYABLE"]}, "$original_amount", 0]}},
+            "alacak": {"$sum": {"$cond": [{"$eq": ["$kind", "RECEIVABLE"]}, "$original_amount", 0]}}
+        }}
+    ]).to_list(20)
+
+    return {
+        "kpi": {
+            "open_payable": g(open_p), "open_receivable": g(open_r),
+            "overdue": g(overdue), "week_due": g(week_due), "month_due": g(month_due),
+            "paid_total": g(paid_total),
+        },
+        "by_ship": [{"name": r["_id"] or "Tanımsız", "total": r["total"], "count": r["count"]} for r in by_ship],
+        "by_company": [{"name": r["_id"] or "Tanımsız", "total": r["total"], "count": r["count"]} for r in by_company],
+        "by_expense": [{"name": r["_id"] or "Tanımsız", "total": r["total"]} for r in by_expense],
+        "top_vendors": [{"vendor": r["_id"] or "Tanımsız", "total": r["total"], "count": r["count"]} for r in top_vendors],
+        "aging": [{"bucket": k, "total": v[0], "count": v[1]} for k, v in buckets.items()],
+        "upcoming": upcoming,
+        "recent_payments": recent_payments,
+        "monthly_cashflow": monthly_cashflow,
+        "fx_latest": fx_latest,
+        "by_currency": [{"currency": r["_id"], "borç": r["borç"], "alacak": r["alacak"]} for r in by_currency],
+    }
+
+
+class ChatInput(BaseModel):
+    session_id: Optional[str] = None
+    message: str
+
+
+@api.post("/ai/chat")
+async def ai_chat(body: ChatInput, user: dict = Depends(get_current_user)):
+    sid = body.session_id or _uid()
+    # History çek
+    history_docs = await db.ai_messages.find({"session_id": sid}, {"_id": 0}).sort("created_at", 1).to_list(50)
+    history = [{"role": h["role"], "content": h["content"]} for h in history_docs]
+    # Context'i topla
+    context = await _build_assistant_context()
+    # User message kaydet
+    await db.ai_messages.insert_one({
+        "id": _uid(), "session_id": sid, "user_id": user["id"],
+        "role": "user", "content": body.message, "created_at": _now()
+    })
+    # AI cevap
+    response = await chat_with_assistant(sid, body.message, context, history)
+    # AI cevap kaydet
+    await db.ai_messages.insert_one({
+        "id": _uid(), "session_id": sid, "user_id": user["id"],
+        "role": "assistant", "content": response, "created_at": _now()
+    })
+    # Session header
+    await db.ai_sessions.update_one(
+        {"id": sid},
+        {"$set": {"id": sid, "user_id": user["id"], "last_message": body.message[:120], "updated_at": _now()},
+         "$setOnInsert": {"created_at": _now(), "title": body.message[:60]}},
+        upsert=True,
+    )
+    return {"session_id": sid, "response": response}
+
+
+@api.get("/ai/sessions")
+async def list_ai_sessions(user: dict = Depends(get_current_user)):
+    items = await db.ai_sessions.find({"user_id": user["id"]}, {"_id": 0}).sort("updated_at", -1).to_list(50)
+    return items
+
+
+@api.get("/ai/sessions/{sid}/messages")
+async def ai_session_messages(sid: str, user: dict = Depends(get_current_user)):
+    items = await db.ai_messages.find({"session_id": sid, "user_id": user["id"]}, {"_id": 0}).sort("created_at", 1).to_list(500)
+    return items
+
+
+@api.delete("/ai/sessions/{sid}")
+async def delete_ai_session(sid: str, user: dict = Depends(get_current_user)):
+    await db.ai_sessions.delete_one({"id": sid, "user_id": user["id"]})
+    await db.ai_messages.delete_many({"session_id": sid, "user_id": user["id"]})
+    return {"ok": True}
+
+
 # ============================================================
 # Mount + Startup
 # ============================================================
 app.include_router(api)
+
+scheduler = AsyncIOScheduler()
 
 
 @app.on_event("startup")
@@ -932,11 +1252,29 @@ async def startup_event():
         logger.info("Admin şifresi güncellendi")
     # Veri seed
     await seed_all(db)
+
+    # TCMB ilk çekme (varsa atla — seed verisi var, en azından bir defa canlı dene)
+    try:
+        await update_fx_in_db(db)
+    except Exception as e:
+        logger.warning("İlk TCMB fetch başarısız: %s", e)
+
+    # Scheduler — her gün 15:30 (TCMB bültenleri 15:30 sonrası yayımlanır)
+    try:
+        scheduler.add_job(update_fx_in_db, "cron", hour=15, minute=30, args=[db], id="tcmb_daily", replace_existing=True)
+        scheduler.start()
+        logger.info("TCMB scheduler aktif (her gün 15:30)")
+    except Exception as e:
+        logger.warning("Scheduler başlatılamadı: %s", e)
+
     logger.info("Startup tamam")
 
 
 @app.on_event("shutdown")
 async def shutdown_event():
+    try:
+        scheduler.shutdown(wait=False)
+    except Exception: pass
     client.close()
 
 
