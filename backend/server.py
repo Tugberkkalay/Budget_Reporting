@@ -1185,13 +1185,49 @@ async def ai_chat(body: ChatInput, user: dict = Depends(get_current_user)):
         "id": _uid(), "session_id": sid, "user_id": user["id"],
         "role": "user", "content": body.message, "created_at": _now()
     })
-    # AI cevap
-    response = await chat_with_assistant(sid, body.message, context, history)
-    # AI cevap kaydet
-    await db.ai_messages.insert_one({
-        "id": _uid(), "session_id": sid, "user_id": user["id"],
-        "role": "assistant", "content": response, "created_at": _now()
-    })
+    # AI cevap (dict döner)
+    result = await chat_with_assistant(sid, body.message, context, history)
+
+    if result.get("type") == "action":
+        # Aksiyon önerisini DB'ye pending olarak kaydet
+        action_id = _uid()
+        await db.ai_pending_actions.insert_one({
+            "id": action_id,
+            "session_id": sid,
+            "user_id": user["id"],
+            "action": result.get("action"),
+            "params": result.get("params", {}),
+            "summary": result.get("summary"),
+            "status": "pending",
+            "created_at": _now(),
+        })
+        # Assistant mesajını "action_proposal" tipinde kaydet
+        await db.ai_messages.insert_one({
+            "id": _uid(), "session_id": sid, "user_id": user["id"],
+            "role": "assistant", "content": result.get("summary") or "Aksiyon önerildi",
+            "message_type": "action_proposal",
+            "action_id": action_id,
+            "action": result.get("action"),
+            "params": result.get("params", {}),
+            "created_at": _now()
+        })
+        response_content = result.get("summary") or "Aksiyon önerildi"
+        response_meta = {
+            "type": "action",
+            "action_id": action_id,
+            "action": result.get("action"),
+            "params": result.get("params", {}),
+            "summary": result.get("summary"),
+        }
+    else:
+        response_content = result.get("content", "")
+        await db.ai_messages.insert_one({
+            "id": _uid(), "session_id": sid, "user_id": user["id"],
+            "role": "assistant", "content": response_content,
+            "message_type": "text", "created_at": _now()
+        })
+        response_meta = {"type": "text"}
+
     # Session header
     await db.ai_sessions.update_one(
         {"id": sid},
@@ -1199,7 +1235,184 @@ async def ai_chat(body: ChatInput, user: dict = Depends(get_current_user)):
          "$setOnInsert": {"created_at": _now(), "title": body.message[:60]}},
         upsert=True,
     )
-    return {"session_id": sid, "response": response}
+    return {"session_id": sid, "response": response_content, **response_meta}
+
+
+class ExecuteActionInput(BaseModel):
+    action_id: str
+    confirmed: bool = True
+    params_override: Optional[dict] = None  # User formdan değer değiştirebilir
+
+
+@api.post("/ai/execute-action")
+async def execute_ai_action(body: ExecuteActionInput, background: BackgroundTasks, user: dict = Depends(get_current_user)):
+    """Kullanıcının onayladığı aksiyonu execute et."""
+    pending = await db.ai_pending_actions.find_one({"id": body.action_id, "user_id": user["id"]}, {"_id": 0})
+    if not pending:
+        raise HTTPException(status_code=404, detail="Aksiyon bulunamadı")
+    if pending["status"] != "pending":
+        raise HTTPException(status_code=400, detail=f"Aksiyon zaten {pending['status']}")
+    if not body.confirmed:
+        await db.ai_pending_actions.update_one({"id": body.action_id}, {"$set": {"status": "rejected", "rejected_at": _now()}})
+        return {"ok": True, "status": "rejected"}
+
+    action = pending["action"]
+    params = dict(pending.get("params", {}))
+    if body.params_override:
+        params.update(body.params_override)
+
+    result_message = ""
+    created_id = None
+
+    try:
+        if action == "create_payable":
+            if not params.get("vendor") or not params.get("original_amount"):
+                raise ValueError("vendor ve original_amount zorunlu")
+            doc = {
+                "id": _uid(),
+                "kind": "PAYABLE",
+                "vendor": params.get("vendor"),
+                "ship": params.get("ship"),
+                "armator": params.get("armator"),
+                "expense_type": params.get("expense_type"),
+                "expense_code": params.get("expense_code"),
+                "country": params.get("country"),
+                "description": params.get("description", ""),
+                "order_date": params.get("order_date"),
+                "due_date": params.get("due_date"),
+                "original_amount": float(params.get("original_amount") or 0),
+                "currency": params.get("currency", "USD"),
+                "usd_amount": float(params.get("usd_amount") or params.get("original_amount") or 0) if (params.get("currency") or "USD") == "USD" else 0,
+                "status": params.get("status", "ONAY BEKLİYOR"),
+                "created_at": _now(),
+                "created_by": user["email"],
+                "created_by_ai": True,
+            }
+            # USD karşılığı hesapla (USD değilse)
+            if (doc["currency"] or "USD") != "USD" and doc["original_amount"]:
+                cur = await db.currencies.find_one({"code": doc["currency"]}, {"_id": 0})
+                usd_cur = await db.currencies.find_one({"code": "USD"}, {"_id": 0})
+                if cur and usd_cur and usd_cur.get("rate_to_tl"):
+                    tl = doc["original_amount"] * float(cur.get("rate_to_tl") or 0)
+                    doc["usd_amount"] = tl / float(usd_cur["rate_to_tl"])
+            if doc["due_date"]:
+                try:
+                    d = datetime.fromisoformat(doc["due_date"])
+                    doc["year"] = d.year; doc["month"] = d.month
+                except Exception: pass
+            await db.payables.insert_one(doc)
+            created_id = doc["id"]
+            result_message = f"✅ Yeni borç oluşturuldu: {doc['vendor']} — {doc['original_amount']:,.2f} {doc['currency']} (vade: {doc.get('due_date','-')})"
+
+        elif action == "create_payment":
+            doc = {
+                "id": _uid(),
+                "type": params.get("type", "TEDİYE"),
+                "vendor": params.get("vendor"),
+                "paying_company": params.get("paying_company"),
+                "payment_method": params.get("payment_method"),
+                "ship": params.get("ship"),
+                "description": params.get("description", ""),
+                "date": params.get("date"),
+                "amount": float(params.get("amount") or 0),
+                "currency": params.get("currency", "USD"),
+                "fx_rate": float(params.get("fx_rate") or 1),
+                "usd_amount": float(params.get("amount") or 0) if (params.get("currency") or "USD") == "USD" else 0,
+                "approved": False,
+                "created_at": _now(),
+                "created_by": user["email"],
+                "created_by_ai": True,
+            }
+            if (doc["currency"] or "USD") != "USD" and doc["amount"]:
+                cur = await db.currencies.find_one({"code": doc["currency"]}, {"_id": 0})
+                usd_cur = await db.currencies.find_one({"code": "USD"}, {"_id": 0})
+                if cur and usd_cur and usd_cur.get("rate_to_tl"):
+                    doc["fx_rate"] = float(cur["rate_to_tl"])
+                    tl = doc["amount"] * float(cur["rate_to_tl"])
+                    doc["usd_amount"] = tl / float(usd_cur["rate_to_tl"])
+            await db.payments.insert_one(doc)
+            created_id = doc["id"]
+            result_message = f"✅ {doc['type']} kaydı oluşturuldu: {doc['vendor']} — {doc['amount']:,.2f} {doc['currency']}"
+
+        elif action == "mark_payable_paid":
+            target = None
+            if params.get("payable_id"):
+                target = await db.payables.find_one({"id": params["payable_id"]}, {"_id": 0})
+            elif params.get("search"):
+                target = await db.payables.find_one({
+                    "kind": "PAYABLE",
+                    "status": {"$nin": ["ÖDENDİ", "İPTAL"]},
+                    "$or": [
+                        {"vendor": {"$regex": params["search"], "$options": "i"}},
+                        {"description": {"$regex": params["search"], "$options": "i"}},
+                    ]
+                }, {"_id": 0})
+            if not target:
+                raise ValueError("Borç bulunamadı")
+            await db.payables.update_one({"id": target["id"]}, {"$set": {"status": "ÖDENDİ", "updated_at": _now()}})
+            created_id = target["id"]
+            result_message = f"✅ Borç ödendi olarak işaretlendi: {target.get('vendor')} — ${target.get('usd_amount', 0):,.2f}"
+
+        elif action == "send_summary_email":
+            # Aksiyon scope'u dahilinde basit özet
+            scope = (params.get("scope") or "").lower()
+            today = datetime.now(timezone.utc).date().isoformat()
+            q = {"kind": "PAYABLE", "status": {"$nin": ["ÖDENDİ", "İPTAL"]}}
+            label = "Açık Borçlar"
+            if "vadesi_gecmis" in scope or "geçmiş" in scope:
+                q["due_date"] = {"$lt": today}; label = "Vadesi Geçmiş Borçlar"
+            elif "bu_ay" in scope or "ay" in scope:
+                month = (datetime.now(timezone.utc).date() + timedelta(days=30)).isoformat()
+                q["due_date"] = {"$gte": today, "$lte": month}; label = "Bu Ay Vadesi Gelen"
+            elif scope.startswith("gemi:"):
+                q["ship"] = scope.split(":", 1)[1].strip().upper(); label = f"{q['ship']} Borçları"
+            elif scope.startswith("tedarikci:") or scope.startswith("tedarikçi:"):
+                vname = scope.split(":", 1)[1].strip()
+                q["vendor"] = {"$regex": vname, "$options": "i"}; label = f"{vname} Borçları"
+            items = await db.payables.find(q, {"_id": 0}).sort("due_date", 1).to_list(50)
+            total = sum(float(p.get("usd_amount", 0) or 0) for p in items)
+            rows = "".join([
+                f"<tr><td style='padding:8px;border-bottom:1px solid #E5E5EA;'>{p.get('vendor','-')}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #E5E5EA;'>{p.get('description','-')}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #E5E5EA;text-align:right;'>{(p.get('due_date','') or '')[:10]}</td>"
+                f"<td style='padding:8px;border-bottom:1px solid #E5E5EA;text-align:right;font-weight:600;'>${p.get('usd_amount',0):,.2f}</td></tr>"
+                for p in items[:30]
+            ])
+            body_html = f"""
+            <p><strong>{label}</strong> raporu hazırlandı. Toplam: <strong>${total:,.2f}</strong> · {len(items)} kayıt</p>
+            <table cellpadding='0' cellspacing='0' border='0' width='100%' style='margin-top:16px;border:1px solid #E5E5EA;border-radius:8px;border-collapse:separate;border-spacing:0;'>
+              <thead>
+                <tr style='background:#FAFAFA;'>
+                  <th style='padding:10px;text-align:left;font-size:11px;'>Tedarikçi</th>
+                  <th style='padding:10px;text-align:left;font-size:11px;'>Açıklama</th>
+                  <th style='padding:10px;text-align:right;font-size:11px;'>Vade</th>
+                  <th style='padding:10px;text-align:right;font-size:11px;'>USD</th>
+                </tr>
+              </thead>
+              <tbody>{rows or '<tr><td colspan=4 style=padding:16px;text-align:center;color:#86868B>Kayıt yok</td></tr>'}</tbody>
+            </table>
+            """
+            background.add_task(send_email, user["email"], f"EY Finans · {label}", body_html, label)
+            result_message = f"✅ {label} özet emaili {user['email']} adresine gönderildi ({len(items)} kayıt, toplam ${total:,.2f})"
+
+        else:
+            raise ValueError(f"Bilinmeyen aksiyon: {action}")
+
+        # Pending'i completed yap
+        await db.ai_pending_actions.update_one({"id": body.action_id}, {"$set": {"status": "completed", "executed_at": _now(), "result_id": created_id}})
+        # Result mesajını ai_messages'a yedir
+        await db.ai_messages.insert_one({
+            "id": _uid(), "session_id": pending["session_id"], "user_id": user["id"],
+            "role": "assistant", "content": result_message,
+            "message_type": "action_result", "created_at": _now()
+        })
+        await write_audit(db, user, action, "ai_action", body.action_id, {"params": params, "result_id": created_id})
+        return {"ok": True, "status": "completed", "message": result_message, "created_id": created_id}
+
+    except Exception as e:
+        logger.exception("Aksiyon execute hatası")
+        await db.ai_pending_actions.update_one({"id": body.action_id}, {"$set": {"status": "failed", "error": str(e)}})
+        return {"ok": False, "status": "failed", "error": str(e)}
 
 
 @api.get("/ai/sessions")

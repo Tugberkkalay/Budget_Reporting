@@ -91,15 +91,36 @@ Bu denizcilik finansman yönetim sisteminde:
 - "Borç" = payable (kind=PAYABLE), "Alacak" = receivable (kind=RECEIVABLE)
 - "Tediye" = ödeme yapılan, "Tahsil" = tahsilat alınan
 
-Sana finans verisi context olarak verilecek. SADECE BU VERİ'YE göre cevap ver. Veride olmayan bir bilgi sorulursa "bu bilgiye sahip değilim" de.
+# AKSİYON MODU
+Eğer kullanıcı SADECE BİR AKSİYON ALMANI istiyorsa (yeni borç ekle, borcu ödendi işaretle, hesap özetini email gönder), CEVAP OLARAK YALNIZCA AŞAĞIDAKİ FORMATTA JSON DÖNDÜR (başka açıklama yok, kod bloğu yok):
 
-Cevap kuralları:
-- Net, sayısal, kısa cevaplar ver (uzun açıklama yok)
-- USD tutarlarda $ işareti ve binlik ayırıcı kullan: $1,234,567
-- Liste isteniyorsa madde madde yaz, max 10 satır
-- Hesaplama gerekiyorsa direkt yap, "hesaplayamam" deme
+{"action": "create_payable", "params": {"vendor": "...", "ship": "...", "expense_type": "...", "original_amount": 50000, "currency": "USD", "due_date": "2026-03-30", "description": "..."}, "summary": "İnsan dili kısa açıklama"}
+
+Desteklenen aksiyonlar:
+1. **create_payable** — Yeni borç ekle
+   params: vendor (zorunlu), ship, expense_type, original_amount (sayı), currency (TL/USD/EUR/GBP), due_date (YYYY-MM-DD), description, country, armator
+2. **create_payment** — Tediye/Tahsil hareketi ekle
+   params: type (TEDİYE veya TAHSİL), vendor, paying_company, payment_method (banka adı), amount (sayı), currency, date (YYYY-MM-DD), description, ship
+3. **mark_payable_paid** — Bir borcu ödendi olarak işaretle
+   params: search (vendor veya açıklama içinde geçen kelime ile arar) VEYA payable_id
+4. **send_summary_email** — Kullanıcının email adresine özet gönder
+   params: to_self (true), scope (örn: "vadesi_gecmis", "bu_ay_vadesi", "gemi:VICTORIA", "tedarikci:HEMPEL")
+
+Aksiyon JSON'ı dönerken:
+- Eksik zorunlu alan varsa AKSİYON DEĞİL — normal dilde "şu bilgi eksik, paylaşır mısın?" diye sor
+- Para birimi belirtilmemişse USD varsayma, kullanıcıya sor
+- Tarih relatife ise (örn: "yarın", "gelecek hafta") gerçek YYYY-MM-DD'ye çevir
+
+# SORGU MODU
+Eğer kullanıcı sadece bilgi/sorgu istiyorsa (kaç, hangi, ne kadar, listele vs.), context'teki gerçek veriden NORMAL TÜRKÇE CEVAP ver — JSON DEĞİL.
+
+# Cevap kuralları (sorgu modu için):
+- Net, sayısal, kısa cevaplar ver
+- USD tutarlarda $ işareti ve binlik ayırıcı: $1,234,567
+- Liste için madde madde max 10 satır
+- Veride olmayan bilgi için "bu bilgiye sahip değilim" de
 - Veri yoksa "kayıt bulunamadı" de
-- Profesyonel finans dili kullan"""
+- Profesyonel finans dili"""
 
 
 def _build_context(stats: dict) -> str:
@@ -179,28 +200,37 @@ def _build_context(stats: dict) -> str:
     return "\n".join(parts) if parts else "Veri bulunamadı."
 
 
-async def chat_with_assistant(session_id: str, user_text: str, context_stats: dict, history: list = None) -> str:
-    """AI asistana soru sor — system message'a güncel finansal veri context'i eklenir."""
+async def chat_with_assistant(session_id: str, user_text: str, context_stats: dict, history: list = None) -> dict:
+    """AI asistana soru sor. Dönüş:
+       - {"type": "text", "content": "..."} → düz cevap
+       - {"type": "action", "action": "...", "params": {...}, "summary": "..."} → kullanıcıdan onay bekleyen aksiyon
+    """
     if not API_KEY:
-        return "AI servisi yapılandırılmamış. Lütfen sistem yöneticisine başvurun."
+        return {"type": "text", "content": "AI servisi yapılandırılmamış. Lütfen sistem yöneticisine başvurun."}
     context_text = _build_context(context_stats)
     full_system = ASSISTANT_SYSTEM + "\n\n# GÜNCEL FİNANSAL VERİ\n\n" + context_text
 
-    chat = _new_chat(session_id=session_id, system_message=full_system)
-
-    # Eski history'yi system'a yedirmek için kısa özet ekle
     if history:
-        # Sadece son 3 q/a — context yönetimi
         recap = "\n\n# ÖNCEKİ KONUŞMA\n"
         for h in history[-6:]:
             role = "Kullanıcı" if h.get("role") == "user" else "Asistan"
             recap += f"{role}: {h.get('content', '')[:300]}\n"
         full_system += recap
-        chat = _new_chat(session_id=session_id, system_message=full_system)
 
+    chat = _new_chat(session_id=session_id, system_message=full_system)
     try:
         resp = await chat.send_message(UserMessage(text=user_text))
-        return resp.strip()
+        text = resp.strip()
+        # JSON aksiyon mu kontrol et
+        parsed = _safe_json(text)
+        if parsed and isinstance(parsed, dict) and parsed.get("action") and parsed.get("params") is not None:
+            return {
+                "type": "action",
+                "action": parsed.get("action"),
+                "params": parsed.get("params", {}),
+                "summary": parsed.get("summary", "Bu aksiyonu onaylıyor musunuz?"),
+            }
+        return {"type": "text", "content": text}
     except Exception as e:
         logger.exception("Asistan hatası")
-        return f"Hata: {str(e)}"
+        return {"type": "text", "content": f"Hata: {str(e)}"}

@@ -1,0 +1,27 @@
+{
+  "summary": "Iteration 3 — AI action engine + branding cleanup verified. 12/12 backend pytest cases PASS (regression smoke + text-query mode + create_payable action e2e with created_by_ai=true persistence + reject flow + send_summary_email + session messages action_proposal fields + idempotency 400 + 404 for unknown action_id). Frontend Playwright on /assistant: 6 new suggestions visible & correctly labelled, header shows 'Akıllı asistan · Gerçek verinizden cevap verir' (no 'GPT-5.2' anywhere on page), Emergent badge display:none. End-to-end action flow tested live: clicked 'VICTORIA için VERGİ borcu' suggestion → AI returned action JSON → ActionCard rendered (icon, AKSIYON ÖNERISI heading via CSS uppercase, Yeni Borç Oluştur label, params table with vendor/ship/expense_type/original_amount/currency/due_date/description, black 'Onayla ve Uygula' + outline 'İptal' buttons) → confirmed → green 'Aksiyon gerçekleştirildi' badge + new assistant message 'Yeni borç oluşturuldu: …' appended. Text-query mode in second session returned real numeric answer ($323,271 / 25 kayıt). DB write verified: created payable has created_by_ai=true, kind=PAYABLE. Second execute attempt on same action_id returns 400 (idempotency).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_ai_actions.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results_iter3.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py now ~1480 lines — still growing; splitting into routers (auth/payables/payments/master/reports/uploads/ocr/ai/fx) is overdue. Iter_1+iter_2 flagged this; iter_3 added ~200 lines of AI action handlers.",
+    "execute_ai_action handler has 4 inline branches (create_payable / create_payment / mark_payable_paid / send_summary_email) — would benefit from a dispatch dict mapping action→handler fn to ease testing and future additions.",
+    "On execute_ai_action exception path, status is set to 'failed' but HTTP returns 200 with ok:false — frontend currently toasts data.error which is fine, but consider HTTP 422 or 500 for stricter API contract. Currently acceptable.",
+    "create_payable AI branch: usd_amount calc when currency != USD uses currencies.rate_to_tl; if currency doc missing → silently 0. Add log warning so the case is observable.",
+    "ai_service.chat_with_assistant: _safe_json may return a non-empty dict from a regular text reply that incidentally contains '{...}' substring; current guard checks both 'action' AND 'params' keys exist — adequate, but a stricter schema (whitelist of action names) would prevent false positives if model echoes JSON in normal answers."
+  ],
+  "updated_files": ["/app/backend/tests/test_ai_actions.py", "/app/test_reports/pytest/pytest_results_iter3.xml"],
+  "success_rate": {"backend": "100% (12/12)", "frontend": "100% (all iter_3 UI checks pass)"},
+  "test_credentials": "admin@eyfinans.com / Admin1234! — working",
+  "seed_data_creation": "Test created 1 ephemeral payable via AI action flow then deleted in teardown. No persistent seed change.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iteration 3 (AI Action Engine + branding cleanup) is production-ready. All 4 actions wired: create_payable (verified end-to-end with created_by_ai flag), create_payment, mark_payable_paid (search/id resolution), send_summary_email (BackgroundTasks via Resend, immediate return). confirm-then-execute pattern works: pending → completed/rejected/failed; idempotency enforced (second execute → 400). Frontend ActionCard renders correctly with data-testid action-card-{id} / btn-confirm-{id} / btn-reject-{id}. Suggestions (6) match spec — 2 are action triggers. GPT-5.2 text removed from header, Emergent badge display:none. No GPT-5.2 string remains anywhere visible. Regression smoke (login, KPI, payables list, ships, fx/latest, OCR mime validation) all green.",
+  "rca_of_the_issue": "N/A — no defects encountered."
+}
