@@ -1,0 +1,186 @@
+import { useEffect, useState } from "react";
+import { api, formatApiError } from "@/lib/api";
+import { Page, Card, EmptyState } from "@/components/Primitives";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { Database, Plus, Trash2, Edit3, Search } from "lucide-react";
+import { toast } from "sonner";
+
+const COLLECTIONS = [
+  { key: "companies", label: "Şirketler", fields: ["name", "tax_no", "notes"] },
+  { key: "ships", label: "Gemiler / Birimler", fields: ["name", "manager", "armator", "imo", "flag", "notes"] },
+  { key: "armators", label: "Armatörler", fields: ["name", "notes"] },
+  { key: "managers", label: "Manager'lar", fields: ["name", "notes"] },
+  { key: "people", label: "Kişi & Alt Şirketler", fields: ["name", "notes"] },
+  { key: "vendors", label: "Tedarikçiler", fields: ["name", "country", "tax_no", "iban", "contact", "phone", "email", "notes"] },
+  { key: "countries", label: "Ülkeler", fields: ["name", "code"] },
+  { key: "banks", label: "Banka & Kasa", fields: ["name", "type", "currency", "iban", "balance", "company", "notes"] },
+  { key: "expense_types", label: "Masraf Türleri", fields: ["code", "name", "notes"] },
+  { key: "accounting_codes", label: "Muhasebe Kodları", fields: ["code", "name", "notes"] },
+  { key: "currencies", label: "Para Birimleri", fields: ["code", "name", "rate_to_tl"] },
+  { key: "payment_statuses", label: "Ödeme Durumları", fields: ["name", "color", "order"] },
+  { key: "payment_methods", label: "Ödeme Şekilleri", fields: ["name", "notes"] },
+];
+
+const FIELD_LABELS = {
+  name: "Ad", code: "Kod", notes: "Notlar", tax_no: "Vergi No",
+  manager: "Manager", armator: "Armatör", imo: "IMO No", flag: "Bayrak",
+  iban: "IBAN", contact: "İletişim Kişisi", phone: "Telefon", email: "Email",
+  type: "Tip", currency: "Para Birimi", balance: "Bakiye", company: "Şirket",
+  rate_to_tl: "TL Karşılığı", color: "Renk", order: "Sıra", country: "Ülke",
+};
+
+export default function MasterData() {
+  const [activeKey, setActiveKey] = useState(COLLECTIONS[0].key);
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [search, setSearch] = useState("");
+
+  const active = COLLECTIONS.find(c => c.key === activeKey);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get(`/master/${activeKey}`);
+      setItems(data);
+    } catch (e) { toast.error(formatApiError(e)); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { setSearch(""); load(); /* eslint-disable-next-line */ }, [activeKey]);
+
+  const filtered = items.filter(i => {
+    if (!search) return true;
+    return Object.values(i).some(v => String(v || "").toLowerCase().includes(search.toLowerCase()));
+  });
+
+  const openCreate = () => { setEditing({}); setOpen(true); };
+  const openEdit = (item) => { setEditing({...item}); setOpen(true); };
+
+  const save = async () => {
+    try {
+      if (editing.id) {
+        await api.put(`/master/${activeKey}/${editing.id}`, editing);
+        toast.success("Güncellendi");
+      } else {
+        await api.post(`/master/${activeKey}`, editing);
+        toast.success("Eklendi");
+      }
+      setOpen(false); setEditing(null); load();
+    } catch (e) { toast.error(formatApiError(e)); }
+  };
+
+  const remove = async (id) => {
+    if (!window.confirm("Silinsin mi?")) return;
+    await api.delete(`/master/${activeKey}/${id}`);
+    toast.success("Silindi"); load();
+  };
+
+  return (
+    <Page title="Tanımlamalar" subtitle="Master data — tüm dropdown'ların kaynağı">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        <Card className="lg:col-span-3 overflow-hidden">
+          <div className="px-5 py-4 border-b border-[#E5E5EA]/50">
+            <h3 className="text-base font-medium text-[#1D1D1F]">Kategoriler</h3>
+            <p className="text-xs text-[#86868B] mt-0.5">{COLLECTIONS.length} bölüm</p>
+          </div>
+          <div className="py-2 max-h-[75vh] overflow-y-auto">
+            {COLLECTIONS.map(c => (
+              <button
+                key={c.key}
+                data-testid={`mcol-${c.key}`}
+                onClick={() => setActiveKey(c.key)}
+                className={`w-full px-5 py-2 text-left text-sm transition ${activeKey === c.key ? "bg-[#FAFAFA] text-[#1D1D1F] font-medium" : "text-[#3A3A3C] hover:bg-[#FAFAFA]"}`}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </Card>
+
+        <Card className="lg:col-span-9 overflow-hidden">
+          <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-[#1D1D1F]">{active.label}</h3>
+              <p className="text-xs text-[#86868B] mt-0.5">{filtered.length} kayıt</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868B]"/>
+                <Input data-testid="input-master-search" placeholder="Ara…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 pl-9 w-56 bg-[#F5F5F7] border-0 rounded-lg"/>
+              </div>
+              <Button data-testid="btn-new-master" onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg h-9 gap-1.5">
+                <Plus className="w-4 h-4"/> Yeni
+              </Button>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="p-6 space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-10 w-full"/>)}</div>
+          ) : filtered.length === 0 ? (
+            <EmptyState icon={Database} title="Kayıt yok" message="Yeni kayıt ekleyerek başlayın." action={<Button onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg gap-1.5"><Plus className="w-4 h-4"/>Yeni Ekle</Button>}/>
+          ) : (
+            <div className="overflow-x-auto max-h-[65vh] overflow-y-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-[#FAFAFA] sticky top-0">
+                  <tr className="text-left">
+                    {active.fields.map((f) => (
+                      <th key={f} className="px-4 py-2.5 text-[11px] uppercase tracking-wider text-[#86868B] font-semibold">{FIELD_LABELS[f] || f}</th>
+                    ))}
+                    <th className="px-4 py-2.5"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map((row) => (
+                    <tr key={row.id} data-testid={`row-master-${row.id}`} onClick={() => openEdit(row)} className="border-b border-[#F5F5F7] hover:bg-[#FAFAFA] cursor-pointer transition">
+                      {active.fields.map((f) => (
+                        <td key={f} className="px-4 py-2 text-[#1D1D1F] truncate max-w-xs">{String(row[f] ?? "—")}</td>
+                      ))}
+                      <td className="px-4 py-2 text-right">
+                        <button onClick={(e) => { e.stopPropagation(); remove(row.id); }} className="p-1.5 rounded-md hover:bg-[#FFEBEA] text-[#86868B] hover:text-[#D92D20] transition">
+                          <Trash2 className="w-4 h-4"/>
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="sm:max-w-md overflow-y-auto rounded-l-3xl">
+          <SheetHeader>
+            <SheetTitle>{editing?.id ? "Düzenle" : "Yeni"} — {active.label}</SheetTitle>
+            <SheetDescription>Detayları girin ve kaydedin.</SheetDescription>
+          </SheetHeader>
+          {editing && (
+            <div className="mt-6 space-y-4">
+              {active.fields.map((f) => (
+                <div key={f} className="space-y-1.5">
+                  <Label className="text-[11px] font-semibold uppercase tracking-wider text-[#86868B]">{FIELD_LABELS[f] || f}</Label>
+                  <Input
+                    data-testid={`input-${f}`}
+                    value={editing[f] ?? ""}
+                    onChange={(e) => setEditing({...editing, [f]: e.target.value})}
+                    className="bg-[#F5F5F7] border-0 rounded-lg"
+                  />
+                </div>
+              ))}
+              <div className="flex gap-2 pt-4 border-t border-[#E5E5EA]">
+                <Button data-testid="btn-save-master" onClick={save} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg flex-1">{editing.id ? "Güncelle" : "Kaydet"}</Button>
+                <Button variant="outline" onClick={() => setOpen(false)} className="rounded-lg">İptal</Button>
+              </div>
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
+    </Page>
+  );
+}
