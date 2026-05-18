@@ -1,0 +1,139 @@
+{
+  "project_name": "EY Finans Platform",
+  "theme_and_archetype": {
+    "theme": "Light Primary (Dark mode supported but secondary)",
+    "archetype": "Swiss & High-Contrast (Archetype 4) fused with Apple/Crystal Glassmorphism",
+    "vibe": "Premium fintech, Notion/Figma-style minimalism, calm, trustworthy, zero nautical clichés.",
+    "core_principles": [
+      "Clarity over decoration: Every element must explain itself.",
+      "Apple-like subtleties: Generous whitespace, continuous curve approximations (squircles), refined typography.",
+      "Notion-like utility: Slide-over panels, inline actions, completely out-of-the-way navigation."
+    ]
+  },
+  "colors": {
+    "light": {
+      "background": {
+        "app": "#FBFBFD",
+        "card": "#FFFFFF",
+        "sidebar": "#F5F5F7",
+        "overlay": "rgba(0, 0, 0, 0.15)"
+      },
+      "text": {
+        "primary": "#1D1D1F",
+        "secondary": "#86868B",
+        "tertiary": "#A1A1A6",
+        "disabled": "#D2D2D7"
+      },
+      "border": {
+        "default": "#E5E5EA",
+        "focus": "#007AFF"
+      },
+      "primary": {
+        "default": "#111111",
+        "hover": "#2C2C2E",
+        "active": "#000000",
+        "foreground": "#FFFFFF"
+      },
+      "semantic": {
+        "success": { "bg": "#E3F8E9", "text": "#1F8942", "border": "#B9EAC8" },
+        "warning": { "bg": "#FFF4CE", "text": "#B26205", "border": "#FCE088" },
+        "danger": { "bg": "#FFEBEA", "text": "#D92D20", "border": "#FECDCB" },
+        "info": { "bg": "#E6F2FF", "text": "#0062CC", "border": "#B3D7FF" },
+        "neutral": { "bg": "#F2F2F7", "text": "#636366", "border": "#E5E5EA" }
+      }
+    }
+  },
+  "typography": {
+    "font_family": {
+      "primary": "'Geist', 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+    },
+    "hierarchy": {
+      "h1": "text-3xl font-semibold tracking-tight text-[#1D1D1F]",
+      "h2": "text-2xl font-semibold tracking-tight text-[#1D1D1F]",
+      "h3": "text-xl font-medium tracking-tight text-[#1D1D1F]",
+      "h4": "text-lg font-medium tracking-tight text-[#1D1D1F]",
+      "body_large": "text-base font-normal leading-relaxed text-[#1D1D1F]",
+      "body_standard": "text-sm font-normal leading-relaxed text-[#1D1D1F]",
+      "body_secondary": "text-sm font-normal leading-relaxed text-[#86868B]",
+      "caption": "text-xs font-medium tracking-wide text-[#86868B] uppercase",
+      "kpi_value": "text-4xl font-medium tracking-tighter text-[#1D1D1F]"
+    }
+  },
+  "spacing_and_layout": {
+    "container_padding": "p-8",
+    "gap_standard": "gap-6",
+    "gap_dense": "gap-4",
+    "border_radius": {
+      "button": "rounded-lg",
+      "card": "rounded-2xl",
+      "panel": "rounded-3xl",
+      "badge": "rounded-full"
+    },
+    "shadows": {
+      "card_rest": "shadow-[0_1px_3px_rgba(0,0,0,0.02),0_4px_12px_rgba(0,0,0,0.03)]",
+      "card_hover": "shadow-[0_4px_12px_rgba(0,0,0,0.05),0_12px_24px_rgba(0,0,0,0.05)]",
+      "dropdown": "shadow-[0_4px_24px_rgba(0,0,0,0.08)]",
+      "slide_over": "shadow-[-8px_0_32px_rgba(0,0,0,0.08)]"
+    },
+    "app_shell": {
+      "sidebar_width": "w-64",
+      "sidebar_collapsed_width": "w-16",
+      "topbar_height": "h-14"
+    }
+  },
+  "components_guidelines": {
+    "sidebar": {
+      "style": "Notion-like. Flush with the left edge, subtle gray background (#F5F5F7). No heavy borders. Active states use white background with subtle shadow and primary text color.",
+      "behavior": "Collapsible to icons. Houses main navigation and quick 'Settings' access at the bottom."
+    },
+    "topbar": {
+      "style": "Apple-like glassmorphism. sticky top-0, backdrop-blur-xl bg-[#FBFBFD]/80. 1px solid bottom border (border-[#E5E5EA]/50).",
+      "elements": "Global Search (⌘+K), Notification Bell, User Avatar."
+    },
+    "kpi_cards": {
+      "style": "White background, rounded-2xl, 1px subtle border. High-contrast large numbers, small colored trend pills (+5% / -2%).",
+      "layout": "Title top-left, Icon top-right (subtle gray), Value bottom-left, Trend bottom-right."
+    },
+    "data_tables": {
+      "style": "Linear-style. No vertical borders. 1px horizontal borders (#E5E5EA). Hover effect on rows (bg-[#F5F5F7]/50). Sticky header with #FAFAFA background.",
+      "features": "Density toggle, customizable columns, action menu (ellipsis) at the end of each row. Row clicks open Slide-over."
+    },
+    "slide_over_panels": {
+      "usage": "Used for all forms (+Borç, +Alacak, +Ödeme) and detail views. Replaces traditional modals.",
+      "style": "shadcn/ui Sheet component. right-side. rounded-l-3xl. bg-white. Overlay is backdrop-blur-sm bg-black/10.",
+      "header": "Sticky header with Close (ESC) button on top right, Title on left."
+    },
+    "status_badges": {
+      "style": "Pill-shaped (rounded-full), soft background, bold colored text, 1px border. E.g., 'Onay Bekliyor' -> Warning semantic colors."
+    },
+    "empty_states": {
+      "style": "Figma/Notion style. Centered content in a dashed-border box or highly padded area. Friendly, monochromatic line-art illustration (Lucide icons scaled up to 48px/64px with stroke-1). Clear, single CTA button."
+    },
+    "charts": {
+      "library": "Recharts",
+      "style": "Minimal. No grid lines or very faint horizontal only (stroke-dasharray='3 3' stroke='#E5E5EA'). Clean tooltips with rounded corners and shadows.",
+      "colors": "Monochromatic or dual-tone based on primary palette. E.g., Nakit Akışı uses Primary Black (#111111) and Secondary Gray (#86868B)."
+    },
+    "toast_notifications": {
+      "library": "Sonner",
+      "position": "top-right",
+      "style": "Apple-like detached floating pills. White bg, soft shadow, semantic icon."
+    }
+  },
+  "motion_and_interactions": {
+    "library": "Framer Motion",
+    "page_transitions": "initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }}",
+    "slide_over": "type: 'spring', stiffness: 300, damping: 30",
+    "hover_states": "Micro-lift for cards: hover:-translate-y-0.5 transition-all duration-200.",
+    "loading": "Loading skeletons (animate-pulse bg-[#E5E5EA]) instead of spinners for data fetching."
+  },
+  "iconography": {
+    "library": "lucide-react",
+    "rules": "Consistent stroke width (1.5px for UI elements, 1px for large empty states). Use monochromatic icons. No filled icons unless representing an active state."
+  },
+  "testing_guidelines": {
+    "data_testid_rule": "All interactive elements (buttons, links, form inputs, table rows, dropdown items, tabs) MUST include a `data-testid` attribute.",
+    "naming_convention": "kebab-case, role-based, english. E.g., `data-testid='btn-create-payable'`, `data-testid='input-vendor-name'`, `data-testid='tab-receivables'`.",
+    "justification": "Required for robust E2E testing (Playwright/Cypress) to prevent breakages during style updates."
+  }
+}
