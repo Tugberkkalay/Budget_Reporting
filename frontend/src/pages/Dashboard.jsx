@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, fmtUSD, fmtDate } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { Card, Page, StatusBadge, Skeleton } from "@/components/Primitives";
 import {
   ArrowDownToLine, ArrowUpFromLine, TrendingUp, AlertCircle,
@@ -14,6 +15,7 @@ import {
 const ChartColors = ["#111111", "#86868B", "#007AFF", "#1F8942", "#B26205", "#D92D20"];
 
 export default function Dashboard() {
+  const { user } = useAuth();
   const [kpi, setKpi] = useState(null);
   const [cashflow, setCashflow] = useState([]);
   const [byShip, setByShip] = useState([]);
@@ -25,6 +27,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!user) return; // Auth context hidrate olmadan API çağırma
     (async () => {
       try {
         const [a, b, c, d, e, f, g, h] = await Promise.all([
@@ -42,7 +45,7 @@ export default function Dashboard() {
         setRecent(g.data); setFx(h.data.slice(0, 5));
       } finally { setLoading(false); }
     })();
-  }, []);
+  }, [user]);
 
   const kpis = [
     { label: "Açık Borç", value: kpi?.open_payable?.total, count: kpi?.open_payable?.count, icon: ArrowDownToLine, accent: "#D92D20" },
