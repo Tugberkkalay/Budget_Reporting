@@ -4,96 +4,64 @@
 Excel'de yönetilen denizcilik şirketi finansal süreçlerini (KURLAR16.xlsm + EY Ödeme Tablosu16.xlsm) tek bir web uygulamasına dönüştürmek. Borç/alacak girişi, hatırlatmalar, güçlü raporlama, sade modern Apple/Notion tasarım, mobil değil web odaklı, parametrik (her şey master data'dan yönetilebilir).
 
 ## Architecture
-- **Backend:** FastAPI + Motor (async MongoDB) — 945 LOC single server.py
-- **Auth:** JWT (PyJWT + bcrypt) email+password, 7 day token, httpOnly cookie + Bearer header, brute-force lockout 5/15min
+- **Backend:** FastAPI + Motor (async MongoDB) — 1280 LOC (server.py + ai_service + fx_service + email_service + auth_utils + seed_loader)
+- **Auth:** JWT (PyJWT + bcrypt) email+password, 7d token, httpOnly cookie + Bearer header, brute-force lockout
 - **Email:** Resend (asyncio.to_thread) — payment reminders, password reset
+- **AI:** Emergent LLM Key + GPT-5.2 (OCR vision + finansal asistan, context-injected RAG)
+- **FX:** TCMB XML live scraper + APScheduler cron (15:30 Europe/Istanbul) + kur sabitleme
+- **File Storage:** Local disk `/app/backend/uploads/` + MongoDB metadata
 - **Frontend:** React 18 + Tailwind + shadcn/ui + Recharts + Lucide + Sonner
-- **Design:** Apple/Notion vibe — light theme, Geist font, slide-over panels, soft shadows, monochrome charts
-- **DB:** MongoDB (`ey_finans_db`) — 18 collections with uuid `id` field, no ObjectId in responses
-
-## User Personas
-1. **Süper Admin** — full access, user management, audit logs
-2. **Yönetici** — approves payments, sees all data
-3. **Muhasebe** — enters payables/payments
-4. **Finans** — reports + approval
-5. **Operasyon** — restricted to own ship
-6. **İzleyici** — read only
-
-## Core Requirements (Static)
-- 11 modules (Dashboard, Borçlar, Alacaklar, Ödemeler, Kasa&Banka, Cari Hesaplar, Raporlar, Hatırlatmalar, Tanımlamalar, Kullanıcılar, Ayarlar)
-- Parametric master data (13 collections — no hardcoding)
-- Multi-company, multi-ship, multi-currency support
-- Real Excel data seeded at startup
-- Turkish UI, English API
+- **Design:** Apple/Notion vibe — Geist font, slide-over panels, soft shadows, monochrome charts
 
 ## Implemented (Jan 2026)
-### Backend
-- [x] JWT auth (login, me, logout, forgot/reset-password)
-- [x] User CRUD (admin only) + role-based access
-- [x] Generic master data CRUD for 13 collections
-- [x] Payables/Receivables CRUD (kind discriminator)
-- [x] Payments CRUD with auto-status update (full→ÖDENDİ, partial→KISMİ ÖDEME)
-- [x] Dashboard endpoints (kpi, cashflow, by-ship, by-company, by-expense-type, upcoming, recent)
-- [x] Reports (by-ship-detail, aging 0/30/60/90+, monthly-projection, top-vendors, by-currency)
-- [x] Current Accounts list + detail
-- [x] Bank Accounts list + transactions
-- [x] Notifications + reminder check-due endpoint
-- [x] Audit log endpoint (admin only)
-- [x] FX rates endpoints
-- [x] Excel data seed (778 vendors, 24 ships, 38 banks, 53 expense types, 101 accounting codes, 127 payments, 85 payables, 31 FX rates) — idempotent
-- [x] Brute-force protection + MongoDB indexes (TTL on password tokens)
+### Iteration 1 — Core MVP (11 modules)
+- JWT auth, user management, audit log
+- 13 master data collections (parametric)
+- Payables/Receivables/Payments full CRUD
+- Dashboard (6 KPI + 5 charts), 5 reports, current accounts, cash & bank
+- Notifications + reminder check-due
+- Excel seed (778 vendors, 24 ships, 38 banks, 127 payments, 85 payables...)
+- Apple/Notion design system
+- ✅ 47/47 pytest + frontend E2E PASS
 
-### Frontend
-- [x] Login page (Apple-style, dark CTA, soft inputs)
-- [x] Layout — Notion-style collapsible sidebar + glassmorphism topbar with bell, avatar, ⌘K search
-- [x] Dashboard — 6 KPI cards + 5 charts + upcoming/recent tables + TCMB widget
-- [x] Payables page — list, search, filters, slide-over CRUD form
-- [x] Receivables page — kind=RECEIVABLE variant
-- [x] Payments page — list, filters, slide-over CRUD form
-- [x] Cash & Bank — accounts list + transactions detail with in/out/net
-- [x] Current Accounts — vendor list + detail (borç/ödeme history)
-- [x] Reports — 5 templates with charts (bar, pie, table)
-- [x] Reminders — notification list + mark-read + check-due trigger
-- [x] Master Data — 13 collections with generic CRUD UI
-- [x] Users (admin) — user CRUD + audit log side panel
-- [x] Settings — profile, notification prefs, system info
+### Iteration 2 — AI & Smart Features
+- **File Uploads** — PDF/JPG/PNG/WEBP upload (max 15MB), attached_to/attached_id pattern (borç/ödeme), download via blob, audit log
+- **OCR (GPT-5.2 Vision)** — fatura görselinden vendor/invoice_no/dates/amount/currency/description otomatik parse, form auto-fill
+- **TCMB Live FX** — `www.tcmb.gov.tr/kurlar/today.xml` real-time scrape, APScheduler cron her gün 15:30 İstanbul, manuel "Şimdi Güncelle" butonu, kur sabitleme `/fx/on-date`
+- **AI Asistan (RAG)** — GPT-5.2, context-injected (KPI + by_ship + by_company + top_vendors + aging + upcoming + recent + cashflow + FX + currency position), Turkish UI/system prompt, session management, gerçek sayısal cevaplar
+- ✅ 17/17 pytest + frontend E2E PASS · 0 critical issues
 
-### Testing
-- [x] 47/47 pytest cases PASSED
-- [x] Playwright E2E: login → dashboard → all 11 modules navigate, slide-overs open, logout works
-- [x] data-testid attributes on all critical UI
+## User Personas
+1. Süper Admin · 2. Yönetici · 3. Muhasebe · 4. Finans · 5. Operasyon · 6. İzleyici
 
-## Known Polish Items (Non-blocking)
-- server.py is 945 lines — could split into modules
-- CORS_ORIGINS="*" needs tightening in production
-- Master data POST does not enforce unique names (acceptable for parametric lookups)
+## Modules (Final State)
+| # | Modül | Endpoints | Frontend |
+|---|---|---|---|
+| 1 | Dashboard | /dashboard/kpi+cashflow+by-ship+by-company+by-expense-type+upcoming+recent | ✅ |
+| 2 | Borçlar (Payables) | /payables CRUD | ✅ + OCR + Ekler |
+| 3 | Alacaklar | /payables?kind=RECEIVABLE | ✅ |
+| 4 | Ödemeler | /payments CRUD | ✅ |
+| 5 | Kasa & Banka | /bank-accounts + transactions | ✅ |
+| 6 | Cari Hesaplar | /current-accounts + detail | ✅ |
+| 7 | Raporlar | /reports/{by-ship,aging,monthly,top-vendors,by-currency} | ✅ |
+| 8 | **AI Asistan** | /ai/chat + /ai/sessions | ✅ |
+| 9 | Hatırlatmalar | /notifications + /reminders/check-due | ✅ |
+| 10 | Tanımlamalar | /master/{collection} (13 koleksiyon) | ✅ |
+| 11 | Kullanıcılar | /users + /audit-logs | ✅ |
+| 12 | Ayarlar | profile + TCMB refresh | ✅ |
 
-## Backlog (P1 — Next Iterations)
-- File upload (fatura/dekont PDF/JPG) for payables
-- Excel import for bulk payables
-- CSV/PDF export per page
-- Recurring payables (monthly rent, salary auto-generation)
-- Installment splitter (1 debt → N installments)
-- Bank statement reconciliation (CSV upload → auto-match)
+## Backlog (Next)
+- ⏳ split server.py into routers (already 1280 LOC)
+- Excel toplu import (CSV upload)
 - Daily/weekly summary email cron
-- TCMB live FX puller (currently seed only)
-- Account statement PDF email to vendor
+- Recurring/installment payables
+- Bank statement reconciliation
 - Dark mode toggle
-- ⌘K command palette functionality (currently visual only)
-- Audit log filterable UI
-
-## Backlog (P2)
-- OCR fatura okuma
-- AI assistant ("Bu ay MARTI ne kadar ödedi?")
-- Banka API entegrasyonu (YKB / Denizbank ekstre)
-- E-Fatura GİB entegrasyonu
-- Sözleşme yönetimi modülü
-- Bütçe vs gerçekleşen karşılaştırma
-- 2FA opsiyonu
+- ⌘K command palette (currently visual)
 
 ## Tech Notes
-- Frontend: REACT_APP_BACKEND_URL kullanılmalı (production preview URL)
-- Backend: MONGO_URL + DB_NAME, JWT_SECRET, ADMIN_EMAIL/PASSWORD, RESEND_API_KEY, SENDER_EMAIL .env'de
-- Tüm endpoint'ler /api prefix'i ile (Kubernetes ingress kuralı)
-- Frontend axios `withCredentials: true` + Bearer fallback header
-- Seed idempotent — server her başlatıldığında veri varsa atlar
+- `EMERGENT_LLM_KEY` .env'de — GPT-5.2 ücretsiz
+- TCMB: APScheduler + pytz Europe/Istanbul (her gün 15:30)
+- Uploads: 15MB cap, allowed: jpeg/png/webp/pdf
+- AI context her chat'te yeniden hesaplanır → her zaman güncel veri
+- Login: admin@eyfinans.com / Admin1234!

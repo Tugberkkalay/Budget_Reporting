@@ -1259,11 +1259,12 @@ async def startup_event():
     except Exception as e:
         logger.warning("İlk TCMB fetch başarısız: %s", e)
 
-    # Scheduler — her gün 15:30 (TCMB bültenleri 15:30 sonrası yayımlanır)
+    # Scheduler — her gün 15:30 Europe/Istanbul (TCMB bültenleri bu saatte yayımlanır)
     try:
-        scheduler.add_job(update_fx_in_db, "cron", hour=15, minute=30, args=[db], id="tcmb_daily", replace_existing=True)
+        from pytz import timezone as _tz
+        scheduler.add_job(update_fx_in_db, "cron", hour=15, minute=30, timezone=_tz("Europe/Istanbul"), args=[db], id="tcmb_daily", replace_existing=True)
         scheduler.start()
-        logger.info("TCMB scheduler aktif (her gün 15:30)")
+        logger.info("TCMB scheduler aktif (her gün 15:30 Europe/Istanbul)")
     except Exception as e:
         logger.warning("Scheduler başlatılamadı: %s", e)
 
