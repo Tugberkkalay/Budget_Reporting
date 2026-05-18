@@ -13,6 +13,16 @@ Excel'de yönetilen denizcilik şirketi finansal süreçlerini (KURLAR16.xlsm + 
 - **Frontend:** React 18 + Tailwind + shadcn/ui + Recharts + Lucide + Sonner
 - **Design:** Apple/Notion vibe — Geist font, slide-over panels, soft shadows, monochrome charts
 
+### Iteration 4 — Modular Refactor + 4 yeni AI aksiyonu (DEPLOY-READY)
+- **Backend Refactor:** server.py **1497 → 120 LOC** · 12 router'a ayrıldı (auth, users, master, payables, payments, dashboard, accounts, reports, notifications, fx, uploads, ai) · ortak dosyalar: `database.py` (singleton) + `dependencies.py` (auth/audit helpers) + `pdf_service.py` (reportlab) + `ai_actions.py` (8 action dispatch)
+- **Yeni 4 AI aksiyonu:**
+  - `update_payable` — Mevcut borcu güncelle (search/payable_id ile bul, USD karşılığı yeniden hesaplanır)
+  - `delete_payable` — Sil (bağlı ödeme varsa İPTAL'e çekilir, yoksa hard delete)
+  - `transfer_between_banks` — Bankalar arası virman (2 payment kaydı: TEDİYE çıkan + TAHSİL giren, transfer_pair_id linki)
+  - `generate_pdf_statement` — reportlab ile PDF hesap özeti, uploads'a kaydet, Resend ile email attachment olarak gönder, download_url döndür
+- Frontend Assistant'a 4 yeni `ACTION_LABELS` + suggestion + PDF download button (authenticated fetch→blob)
+- ✅ 81/82 pytest + 12/12 frontend routes PASS · **0 regression · 0 kritik bug**
+
 ### Iteration 3 — AI Action Engine & Branding Cleanup
 - **AI Aksiyon Engine** — 4 hazır aksiyon (`create_payable`, `create_payment`, `mark_payable_paid`, `send_summary_email`) · confirm-then-execute pattern (pending → completed/rejected/failed) · idempotency · `created_by_ai=true` flag
 - **System prompt:** AI sorgu modu (text) ile aksiyon modu (JSON action) arasında otomatik karar verir
