@@ -13,6 +13,14 @@ Excel'de yönetilen denizcilik şirketi finansal süreçlerini (KURLAR16.xlsm + 
 - **Frontend:** React 18 + Tailwind + shadcn/ui + Recharts + Lucide + Sonner
 - **Design:** Apple/Notion vibe — Geist font, slide-over panels, soft shadows, monochrome charts
 
+### Iteration 3 — AI Action Engine & Branding Cleanup
+- **AI Aksiyon Engine** — 4 hazır aksiyon (`create_payable`, `create_payment`, `mark_payable_paid`, `send_summary_email`) · confirm-then-execute pattern (pending → completed/rejected/failed) · idempotency · `created_by_ai=true` flag
+- **System prompt:** AI sorgu modu (text) ile aksiyon modu (JSON action) arasında otomatik karar verir
+- **Frontend ActionCard:** "AKSIYON ÖNERISI" başlık + params tablosu + Onayla/İptal butonları + status badge'leri (yeşil completed / gri rejected)
+- **Branding cleanup:** Tüm UI'dan "GPT-5.2" mention'ları kaldırıldı → "Akıllı asistan" yazıyor
+- **Emergent badge:** display:none ile gizlendi
+- ✅ 12/12 pytest + frontend E2E PASS · 0 critical issues
+
 ## Implemented (Jan 2026)
 ### Iteration 1 — Core MVP (11 modules)
 - JWT auth, user management, audit log
