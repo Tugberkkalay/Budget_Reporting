@@ -17,7 +17,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from database import db, client
 from dependencies import _uid, _now
 from auth_utils import hash_password, verify_password
-from seed_loader import seed_all, ensure_indexes
+from seed_loader import seed_all, ensure_indexes, maybe_reset_for_new_seed
 from fx_service import update_fx_in_db
 
 # Routers
@@ -79,6 +79,10 @@ scheduler = AsyncIOScheduler()
 @app.on_event("startup")
 async def startup_event():
     await ensure_indexes(db)
+
+    # Eğer seed versiyonu değiştiyse (kod tarafında bump edildiyse) — eski tüm data temizlenir
+    await maybe_reset_for_new_seed(db)
+
     # Admin seed
     admin_email = os.environ.get("ADMIN_EMAIL", "admin@eyfinans.com")
     admin_password = os.environ.get("ADMIN_PASSWORD", "Admin1234!")

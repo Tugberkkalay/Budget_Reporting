@@ -1,4 +1,4 @@
-"""Excel'den çıkarılmış gerçek verileri MongoDB'ye yükler (idempotent)."""
+"""Excel'den çıkarılmış gerçek verileri MongoDB'ye yükler (idempotent + versiyonlu)."""
 import os
 import json
 import logging
@@ -10,6 +10,53 @@ logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent
 SEED_FILE = ROOT / "seed" / "data.json"
+
+# Bu versiyon değiştiğinde startup'ta DB'deki data otomatik temizlenir ve yeniden seed olur.
+# YENİ DATA EKLEDİĞİNDE BURAYI BUMP ET (örn. v2 → v3)
+CURRENT_SEED_VERSION = "marti-2026-05-30-v1"
+
+# Re-seed sırasında temizlenecek koleksiyonlar (kullanıcı verileri korunur)
+RESET_COLLECTIONS = [
+    "companies", "armators", "managers", "ships", "people", "countries",
+    "banks", "expense_types", "accounting_codes", "vendors", "currencies",
+    "payment_statuses", "payment_methods", "payables", "payments", "fx_rates",
+    "notifications", "ai_sessions", "ai_messages", "ai_pending_actions", "uploads"
+]
+# Korunan koleksiyonlar (asla silinmez): users, audit_logs, app_meta,
+# password_reset_tokens, login_attempts
+
+
+async def maybe_reset_for_new_seed(db):
+    """Eğer current seed version DB'dekinden farklıysa, tüm seed-edilen koleksiyonları temizle.
+    Böylece bir sonraki seed_all() çağrısı taze veri yükler.
+    Kullanıcı tarafından eklenen veriler de bu temizlikte gider — bu yüzden seed_version
+    sadece kasıtlı veri sıfırlamalarında değiştirilmelidir.
+    """
+    meta = await db.app_meta.find_one({"key": "seed_version"})
+    db_version = (meta or {}).get("value")
+    if db_version == CURRENT_SEED_VERSION:
+        logger.info("Seed version aynı (%s), reset atlanıyor", db_version)
+        return False
+
+    logger.warning("Seed version değişti (%s → %s) — koleksiyonlar temizleniyor...",
+                   db_version, CURRENT_SEED_VERSION)
+    for col in RESET_COLLECTIONS:
+        try:
+            result = await db[col].delete_many({})
+            if result.deleted_count > 0:
+                logger.info("  ✗ %s: %d kayıt silindi", col, result.deleted_count)
+        except Exception as e:
+            logger.warning("  %s temizlenemedi: %s", col, e)
+
+    # Versiyonu güncelle
+    await db.app_meta.update_one(
+        {"key": "seed_version"},
+        {"$set": {"key": "seed_version", "value": CURRENT_SEED_VERSION,
+                  "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True,
+    )
+    logger.info("Seed version DB'ye yazıldı: %s", CURRENT_SEED_VERSION)
+    return True
 
 
 def _uid() -> str:
@@ -259,6 +306,7 @@ async def ensure_indexes(db):
     await db.users.create_index("email", unique=True)
     await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
     await db.login_attempts.create_index("identifier")
+    await db.app_meta.create_index("key", unique=True)
     # collection bazlı id (uuid string)
     for col in ["companies", "armators", "managers", "ships", "people", "countries",
                 "banks", "expense_types", "accounting_codes", "vendors", "currencies",
