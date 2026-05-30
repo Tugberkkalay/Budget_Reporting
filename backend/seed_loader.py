@@ -203,6 +203,15 @@ async def seed_all(db):
 
     # ---- Payables (Borçlar) ----
     if await db.payables.count_documents({}) == 0:
+        # Excel'deki status değerlerini sistemdekine map et
+        STATUS_MAP = {
+            "ÖDENMEDİ": "VADESİ GEÇTİ",
+            "ÖDENDİ": "ÖDENDİ",
+            "İPTAL": "İPTAL",
+            "SİPARİŞ": "ONAY BEKLİYOR",
+            "ONAY BEKLİYOR": "ONAY BEKLİYOR",
+            "KISMİ ÖDEME": "KISMİ ÖDEME",
+        }
         docs = []
         for p in data.get("payables", []):
             try:
@@ -213,11 +222,13 @@ async def seed_all(db):
                 usd = float(p.get("usd_amount") or 0)
             except (TypeError, ValueError):
                 usd = 0
+            raw_status = (p.get("status") or "ÖDENMEDİ").upper()
+            mapped_status = STATUS_MAP.get(raw_status, raw_status)
             doc = {
                 "id": _uid(),
                 "external_no": p.get("no"),
                 "order_date": p.get("order_date"),
-                "due_date": p.get("due_date"),
+                "due_date": (p.get("due_date") or "")[:10] if p.get("due_date") else None,
                 "expense_code": p.get("expense_code"),
                 "expense_type": p.get("expense_type"),
                 "vendor": p.get("vendor"),
@@ -225,20 +236,22 @@ async def seed_all(db):
                 "person_company": p.get("person_company"),
                 "ship": p.get("ship"),
                 "armator": p.get("armator"),
-                "description": p.get("description"),
+                "description": p.get("description") or p.get("expense_type"),
                 "year": p.get("year"),
                 "month": p.get("month"),
-                "status": p.get("status") or "ONAY BEKLİYOR",
+                "status": mapped_status,
                 "original_amount": amount,
                 "currency": p.get("currency") or "USD",
                 "usd_amount": usd,
-                "kind": "PAYABLE",  # PAYABLE / RECEIVABLE
+                "kind": "PAYABLE",
+                "source_sheet": p.get("source_sheet"),
+                "paying_company": p.get("paying_company"),
                 "created_at": _now(),
             }
             docs.append(doc)
         if docs:
             await db.payables.insert_many(docs)
-            logger.info("Seed: %d borç", len(docs))
+            logger.info("Seed: %d borç (Excel'den)", len(docs))
 
 
 async def ensure_indexes(db):
