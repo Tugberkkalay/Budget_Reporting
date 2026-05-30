@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { Settings as SettingsIcon, User, Bell, RefreshCw, Loader2 } from "lucide-react";
+import { Settings as SettingsIcon, User, Bell, RefreshCw, Loader2, Download } from "lucide-react";
 import { toast } from "sonner";
 
 export default function Settings() {
@@ -35,6 +35,23 @@ export default function Settings() {
       setFxStatus({ count: latest.length, last: latest[0]?.last_updated });
     } catch (e) { toast.error(formatApiError(e)); }
     finally { setFxRefreshing(false); }
+  };
+
+  const [exporting, setExporting] = useState(false);
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      const response = await api.get("/export/excel", { responseType: "blob" });
+      const blob = response.data;
+      const filename = `marti-finans-veri-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Excel dosyası indirildi");
+    } catch (e) {
+      toast.error(formatApiError(e));
+    } finally { setExporting(false); }
   };
 
   const saveProfile = async () => {
@@ -95,12 +112,12 @@ export default function Settings() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-4">
               <div className="text-xs text-[#86868B] uppercase tracking-wider font-semibold mb-2">Veri</div>
-              <div className="text-sm text-[#1D1D1F]">Seed verisi Excel'den otomatik yüklendi</div>
-              <div className="mt-3 text-xs text-[#86868B]">
-                • 13 şirket · 24 gemi<br/>
-                • 778 tedarikçi · 50 ülke<br/>
-                • 127 ödeme · 85 borç
-              </div>
+              <div className="text-sm text-[#1D1D1F]">Tüm veriyi Excel olarak indir</div>
+              <div className="mt-1 text-[10px] text-[#86868B]">Borçlar, ödemeler, cari hesaplar, master data — 14 sheet</div>
+              <Button data-testid="btn-export-excel" onClick={exportExcel} disabled={exporting} className="mt-3 h-8 px-3 text-xs rounded-md gap-1.5 bg-[#111111] hover:bg-[#2C2C2E] text-white">
+                {exporting ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Download className="w-3.5 h-3.5"/>}
+                Excel'e Aktar
+              </Button>
             </Card>
             <Card className="p-4">
               <div className="text-xs text-[#86868B] uppercase tracking-wider font-semibold mb-2">Email</div>

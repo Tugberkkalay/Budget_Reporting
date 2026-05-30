@@ -33,6 +33,7 @@ from routers.notifications import router as notifications_router
 from routers.fx import router as fx_router
 from routers.uploads import router as uploads_router
 from routers.ai import router as ai_router
+from routers.export import router as export_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -61,6 +62,7 @@ api.include_router(notifications_router)
 api.include_router(fx_router)
 api.include_router(uploads_router)
 api.include_router(ai_router)
+api.include_router(export_router)
 
 
 @api.get("/")
@@ -90,6 +92,17 @@ async def startup_event():
     elif not verify_password(admin_password, existing.get("password_hash", "")):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
         logger.info("Admin şifresi güncellendi")
+
+    # Müşteri (MARTI) için ek admin user — sadece yoksa ekle
+    marti_email = os.environ.get("MARTI_ADMIN_EMAIL", "admin@martidenizcilikfinans.com")
+    marti_password = os.environ.get("MARTI_ADMIN_PASSWORD", "Marti2026!")
+    marti_existing = await db.users.find_one({"email": marti_email})
+    if not marti_existing:
+        await db.users.insert_one({
+            "id": _uid(), "email": marti_email, "name": "MARTI Yönetici", "role": "admin",
+            "password_hash": hash_password(marti_password), "active": True, "created_at": _now(),
+        })
+        logger.info("MARTI admin user oluşturuldu: %s", marti_email)
 
     await seed_all(db)
 
