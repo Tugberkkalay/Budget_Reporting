@@ -1,6 +1,29 @@
 import axios from "axios";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+// Akıllı Backend URL tespiti:
+// 1. process.env.REACT_APP_BACKEND_URL'i öncelikli kullan (development/preview için)
+// 2. AMA frontend custom domain'den açılıyorsa (env'deki hostname ile uyuşmuyorsa),
+//    mevcut domain'in /api endpoint'ini kullan → custom domain'lerde otomatik çalışır
+const ENV_BACKEND_URL = process.env.REACT_APP_BACKEND_URL || "";
+
+const resolveBackendURL = () => {
+  if (typeof window === "undefined") return ENV_BACKEND_URL;
+  const currentHost = window.location.hostname;
+  // Env URL ya hiç yok ya da farklı bir hostname içeriyorsa → mevcut origin kullan
+  if (!ENV_BACKEND_URL) return window.location.origin;
+  try {
+    const envHost = new URL(ENV_BACKEND_URL).hostname;
+    if (envHost !== currentHost) {
+      // Custom domain veya farklı domain → mevcut origin'i kullan
+      return window.location.origin;
+    }
+  } catch {
+    return window.location.origin;
+  }
+  return ENV_BACKEND_URL;
+};
+
+const BACKEND_URL = resolveBackendURL();
 export const API_BASE = `${BACKEND_URL}/api`;
 
 export const api = axios.create({
