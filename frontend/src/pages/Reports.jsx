@@ -56,7 +56,7 @@ export default function Reports() {
         </Card>
 
         <Card className="lg:col-span-8 overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
             <div>
               <h3 className="text-base font-semibold text-[#1D1D1F]">{selected.label}</h3>
               <p className="text-xs text-[#86868B] mt-0.5">{selected.desc}</p>

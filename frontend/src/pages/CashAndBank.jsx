@@ -28,7 +28,7 @@ export default function CashAndBank() {
     <Page title="Kasa & Banka" subtitle={`${banks.length} hesap`}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <Card className="lg:col-span-1 overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50">
             <h3 className="text-base font-medium text-[#1D1D1F]">Hesaplar</h3>
             <p className="text-xs text-[#86868B] mt-0.5">Net hareket (Tahsil − Tediye)</p>
           </div>
@@ -62,22 +62,22 @@ export default function CashAndBank() {
             <EmptyState icon={Wallet} title="Hesap seçin" message="Soldan bir banka veya kasa hesabı seçerek hareketlerini görüntüleyin."/>
           ) : (
             <>
-              <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
+              <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
                   <h3 className="text-base font-medium text-[#1D1D1F]">{selected.name}</h3>
                   <p className="text-xs text-[#86868B] mt-0.5">{tx.length} hareket</p>
                 </div>
-                <div className="flex gap-6 text-right">
+                <div className="flex gap-4 sm:gap-6 text-right">
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Giren</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Giren</div>
                     <div className="text-sm font-semibold text-[#1F8942] tabular-nums">{fmtUSD(selected.in)}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Çıkan</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Çıkan</div>
                     <div className="text-sm font-semibold text-[#D92D20] tabular-nums">{fmtUSD(selected.out)}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Net</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Net</div>
                     <div className="text-sm font-semibold tabular-nums">{fmtUSD(selected.net)}</div>
                   </div>
                 </div>

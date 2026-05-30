@@ -46,11 +46,11 @@ export default function Reminders() {
       title="Hatırlatmalar & Bildirimler"
       subtitle={`${items.filter(i => !i.read).length} okunmamış · ${items.length} toplam`}
       actions={
-        <div className="flex gap-2">
-          <Button data-testid="btn-check-due" onClick={runCheck} disabled={running} variant="outline" className="rounded-lg gap-1.5">
+        <div className="flex flex-wrap gap-2">
+          <Button data-testid="btn-check-due" onClick={runCheck} disabled={running} variant="outline" className="rounded-lg gap-1.5 text-xs sm:text-sm">
             <RefreshCw className={`w-4 h-4 ${running ? "animate-spin" : ""}`}/> Vadeleri Kontrol Et
           </Button>
-          <Button data-testid="btn-mark-all-read" onClick={markAllRead} variant="outline" className="rounded-lg gap-1.5">
+          <Button data-testid="btn-mark-all-read" onClick={markAllRead} variant="outline" className="rounded-lg gap-1.5 text-xs sm:text-sm">
             <CheckCheck className="w-4 h-4"/> Hepsini Okundu İşaretle
           </Button>
         </div>

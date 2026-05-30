@@ -67,7 +67,7 @@ export default function Users() {
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <Card className="lg:col-span-7 overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50">
             <h3 className="text-base font-medium text-[#1D1D1F]">Kullanıcılar</h3>
           </div>
           {loading ? (
@@ -103,7 +103,7 @@ export default function Users() {
         </Card>
 
         <Card className="lg:col-span-5 overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50">
             <h3 className="text-base font-medium text-[#1D1D1F]">Aktivite Logu</h3>
             <p className="text-xs text-[#86868B] mt-0.5">Son işlemler</p>
           </div>
@@ -123,7 +123,7 @@ export default function Users() {
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="sm:max-w-md overflow-y-auto rounded-l-3xl">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto rounded-l-3xl">
           <SheetHeader>
             <SheetTitle>{editing?.id ? "Kullanıcıyı Düzenle" : "Yeni Kullanıcı"}</SheetTitle>
             <SheetDescription>Email, ad ve rol bilgilerini girin.</SheetDescription>

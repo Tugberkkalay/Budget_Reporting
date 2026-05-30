@@ -3,12 +3,12 @@ import { cn } from "@/lib/utils";
 
 export const Page = ({ title, subtitle, actions, children }) => (
   <div className="max-w-[1400px] mx-auto">
-    <div className="flex items-start justify-between mb-8 gap-4">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-[#1D1D1F]" data-testid="page-title">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm text-[#86868B]">{subtitle}</p>}
+    <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 sm:mb-8 gap-3 sm:gap-4">
+      <div className="min-w-0">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-[#1D1D1F] truncate" data-testid="page-title">{title}</h1>
+        {subtitle && <p className="mt-1 text-xs sm:text-sm text-[#86868B]">{subtitle}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
     {children}
   </div>

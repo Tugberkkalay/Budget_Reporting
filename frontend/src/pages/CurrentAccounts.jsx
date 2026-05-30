@@ -73,21 +73,21 @@ export default function CurrentAccounts() {
             <EmptyState icon={Users} title="Cari seçin" message="Bir cari hesabın detayını görüntülemek için soldan seçin."/>
           ) : (
             <>
-              <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between gap-4">
+              <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h3 className="text-base font-semibold text-[#1D1D1F] truncate">{detail.name}</h3>
                 </div>
-                <div className="flex gap-6 text-right shrink-0">
+                <div className="flex gap-4 sm:gap-6 text-right shrink-0">
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Borç</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Borç</div>
                     <div className="text-sm font-semibold text-[#D92D20] tabular-nums">{fmtUSD(detail.summary.debt)}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Ödenen</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Ödenen</div>
                     <div className="text-sm font-semibold text-[#1F8942] tabular-nums">{fmtUSD(detail.summary.paid)}</div>
                   </div>
                   <div>
-                    <div className="text-[11px] uppercase tracking-wider text-[#86868B]">Bakiye</div>
+                    <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#86868B]">Bakiye</div>
                     <div className="text-sm font-semibold tabular-nums">{fmtUSD(detail.summary.balance)}</div>
                   </div>
                 </div>

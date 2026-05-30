@@ -103,17 +103,17 @@ export default function MasterData() {
         </Card>
 
         <Card className="lg:col-span-9 overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between gap-3">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <h3 className="text-base font-semibold text-[#1D1D1F]">{active.label}</h3>
               <p className="text-xs text-[#86868B] mt-0.5">{filtered.length} kayıt</p>
             </div>
             <div className="flex items-center gap-2">
-              <div className="relative">
+              <div className="relative flex-1 sm:flex-initial">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868B]"/>
-                <Input data-testid="input-master-search" placeholder="Ara…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 pl-9 w-56 bg-[#F5F5F7] border-0 rounded-lg"/>
+                <Input data-testid="input-master-search" placeholder="Ara…" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9 pl-9 w-full sm:w-56 bg-[#F5F5F7] border-0 rounded-lg"/>
               </div>
-              <Button data-testid="btn-new-master" onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg h-9 gap-1.5">
+              <Button data-testid="btn-new-master" onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg h-9 gap-1.5 shrink-0">
                 <Plus className="w-4 h-4"/> Yeni
               </Button>
             </div>
@@ -155,7 +155,7 @@ export default function MasterData() {
       </div>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="sm:max-w-md overflow-y-auto rounded-l-3xl">
+        <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto rounded-l-3xl">
           <SheetHeader>
             <SheetTitle>{editing?.id ? "Düzenle" : "Yeni"} — {active.label}</SheetTitle>
             <SheetDescription>Detayları girin ve kaydedin.</SheetDescription>

@@ -182,7 +182,7 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
 
       {/* Slide-over form */}
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="sm:max-w-xl overflow-y-auto rounded-l-3xl border-l border-[#E5E5EA]">
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto rounded-l-3xl border-l border-[#E5E5EA]">
           <SheetHeader>
             <SheetTitle data-testid="form-title">{editing?.id ? "Kaydı Düzenle" : `Yeni ${kindProp === "PAYABLE" ? "Borç" : "Alacak"}`}</SheetTitle>
             <SheetDescription>Borç bilgilerini doldurun. USD karşılığı otomatik hesaplanır.</SheetDescription>
@@ -204,7 +204,7 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
                 })}/>
               )}
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Sipariş Tarihi">
                   <Input data-testid="input-order-date" type="date" value={editing.order_date?.slice(0,10) || ""} onChange={(e) => setEditing({...editing, order_date: e.target.value})}/>
                 </Field>
@@ -217,7 +217,7 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
                 <SelectField testid="select-vendor" value={editing.vendor} onChange={(v) => setEditing({...editing, vendor: v})} options={masters.vendors.map(v => v.name)}/>
               </Field>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Gemi / Birim">
                   <SelectField testid="select-ship" value={editing.ship} onChange={(v) => setEditing({...editing, ship: v})} options={masters.ships.map(s => s.name)}/>
                 </Field>
@@ -226,7 +226,7 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
                 </Field>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Masraf Türü">
                   <SelectField testid="select-expense" value={editing.expense_type} onChange={(v) => {
                     const item = masters.expense_types.find(e => e.name === v);
@@ -242,7 +242,7 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
                 <Textarea data-testid="input-description" value={editing.description || ""} onChange={(e) => setEditing({...editing, description: e.target.value})} rows={2} className="bg-[#F5F5F7] border-0 rounded-lg"/>
               </Field>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Tutar *">
                   <Input data-testid="input-amount" type="number" step="0.01" value={editing.original_amount || ""} onChange={(e) => setEditing({...editing, original_amount: parseFloat(e.target.value) || 0})}/>
                 </Field>

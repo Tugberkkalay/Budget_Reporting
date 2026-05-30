@@ -156,14 +156,14 @@ export default function Payments() {
       </Card>
 
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" className="sm:max-w-xl overflow-y-auto rounded-l-3xl">
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto rounded-l-3xl">
           <SheetHeader>
             <SheetTitle>{editing?.id ? "Hareketi Düzenle" : "Yeni Hareket"}</SheetTitle>
             <SheetDescription>Tediye (ödeme) veya Tahsil hareketini kaydedin.</SheetDescription>
           </SheetHeader>
           {editing && (
             <div className="mt-6 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldL label="Tip *"><SelectF value={editing.type} onChange={(v) => setEditing({...editing, type: v})} options={["TEDİYE", "TAHSİL"]}/></FieldL>
                 <FieldL label="Tarih *"><Input type="date" value={editing.date?.slice(0,10) || ""} onChange={(e) => setEditing({...editing, date: e.target.value})}/></FieldL>
               </div>
@@ -173,12 +173,12 @@ export default function Payments() {
               <FieldL label="Açıklama">
                 <Textarea value={editing.description || ""} onChange={(e) => setEditing({...editing, description: e.target.value})} rows={2} className="bg-[#F5F5F7] border-0 rounded-lg"/>
               </FieldL>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <FieldL label="Şirket"><SelectF value={editing.paying_company} onChange={(v) => setEditing({...editing, paying_company: v})} options={masters.companies.map(c => c.name)}/></FieldL>
                 <FieldL label="Hesap / Banka"><SelectF value={editing.payment_method} onChange={(v) => setEditing({...editing, payment_method: v})} options={masters.banks.map(b => b.name)}/></FieldL>
               </div>
               <FieldL label="Gemi / Birim"><SelectF value={editing.ship} onChange={(v) => setEditing({...editing, ship: v})} options={masters.ships.map(s => s.name)}/></FieldL>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <FieldL label="Tutar *"><Input type="number" step="0.01" value={editing.amount || ""} onChange={(e) => setEditing({...editing, amount: parseFloat(e.target.value) || 0})}/></FieldL>
                 <FieldL label="Döviz"><SelectF value={editing.currency} onChange={(v) => setEditing({...editing, currency: v})} options={masters.currencies.map(c => c.code)}/></FieldL>
                 <FieldL label="Kur"><Input type="number" step="0.0001" value={editing.fx_rate || ""} onChange={(e) => setEditing({...editing, fx_rate: parseFloat(e.target.value) || 0})}/></FieldL>

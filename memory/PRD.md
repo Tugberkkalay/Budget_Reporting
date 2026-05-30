@@ -13,6 +13,19 @@ Excel'de yönetilen denizcilik şirketi finansal süreçlerini (KURLAR16.xlsm + 
 - **Frontend:** React 18 + Tailwind + shadcn/ui + Recharts + Lucide + Sonner
 - **Design:** Apple/Notion vibe — Geist font, slide-over panels, soft shadows, monochrome charts
 
+### Iteration 5 — Mobil Uyum (Feb 2026)
+- **Layout overhaul:** Masaüstünde sabit sidebar (collapsible w-16/w-64), mobilde hamburger menü ile overlay drawer (`Sheet`-benzeri left-slide pattern) · body scroll lock · route değişince auto-close · backdrop blur overlay
+- **Topbar:** mobilde arama gizli + MARTI logo görünür; masaüstünde tam arama barı; user pill mobilde sadece avatar
+- **Page primitive:** başlık `text-3xl` → `text-2xl sm:text-3xl`; actions row mobilde başlığın altına stack
+- **Forms (Payables/Payments):** tüm `grid-cols-2/3` → `grid-cols-1 sm:grid-cols-2/3`
+- **Slide-overs:** `sm:max-w-xl/md` → `w-full sm:max-w-xl/md` (mobilde tam genişlik)
+- **Tables:** `overflow-x-auto` zaten var; section header'ları `flex-col sm:flex-row` ile stack edildi (CashAndBank, CurrentAccounts, MasterData)
+- **Assistant:** Sessions sidebar masaüstünde sabit, mobilde left-Sheet drawer + "Konuşmalar" hamburger butonu
+- **Dashboard:** KPI kart tipografisi `text-2xl` → `text-xl sm:text-2xl`; quick action butonları `flex-wrap`; chart kartları `p-6` → `p-4 sm:p-6`
+- **Reminders:** action butonları `flex-wrap`
+- Ana içerik padding: `p-8` → `p-4 sm:p-6 lg:p-8`
+- ✅ iPhone 12 (390×844) + masaüstü (1440×900) ile sanity test PASS
+
 ### Iteration 4 — Modular Refactor + 4 yeni AI aksiyonu (DEPLOY-READY)
 - **Backend Refactor:** server.py **1497 → 120 LOC** · 12 router'a ayrıldı (auth, users, master, payables, payments, dashboard, accounts, reports, notifications, fx, uploads, ai) · ortak dosyalar: `database.py` (singleton) + `dependencies.py` (auth/audit helpers) + `pdf_service.py` (reportlab) + `ai_actions.py` (8 action dispatch)
 - **Yeni 4 AI aksiyonu:**

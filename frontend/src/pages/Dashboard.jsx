@@ -61,36 +61,36 @@ export default function Dashboard() {
       title="Dashboard"
       subtitle="Tek bakışta finansal durum"
       actions={
-        <div className="flex gap-2">
-          <Link to="/payables" data-testid="qa-add-payable" className="h-9 px-3.5 rounded-lg bg-[#111111] hover:bg-[#2C2C2E] text-white text-sm font-medium inline-flex items-center gap-1.5 transition">
+        <div className="flex flex-wrap gap-2">
+          <Link to="/payables" data-testid="qa-add-payable" className="h-9 px-3 sm:px-3.5 rounded-lg bg-[#111111] hover:bg-[#2C2C2E] text-white text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 transition">
             <Plus className="w-4 h-4" /> Borç
           </Link>
-          <Link to="/receivables" data-testid="qa-add-receivable" className="h-9 px-3.5 rounded-lg bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#E5E5EA] text-sm font-medium inline-flex items-center gap-1.5 transition">
+          <Link to="/receivables" data-testid="qa-add-receivable" className="h-9 px-3 sm:px-3.5 rounded-lg bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#E5E5EA] text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 transition">
             <Plus className="w-4 h-4" /> Alacak
           </Link>
-          <Link to="/payments" data-testid="qa-add-payment" className="h-9 px-3.5 rounded-lg bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#E5E5EA] text-sm font-medium inline-flex items-center gap-1.5 transition">
+          <Link to="/payments" data-testid="qa-add-payment" className="h-9 px-3 sm:px-3.5 rounded-lg bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#E5E5EA] text-xs sm:text-sm font-medium inline-flex items-center gap-1.5 transition">
             <Plus className="w-4 h-4" /> Ödeme
           </Link>
         </div>
       }
     >
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4 mb-6">
         {kpis.map((k, i) => (
-          <Card key={i} className="p-5" data-testid={`kpi-${k.label.toLowerCase().replace(/\s/g, "-")}`}>
-            <div className="flex items-start justify-between mb-3">
-              <span className="text-[11px] uppercase tracking-wider font-semibold text-[#86868B]">{k.label}</span>
-              <k.icon className="w-4 h-4 text-[#A1A1A6]" strokeWidth={1.5} />
+          <Card key={i} className="p-4 sm:p-5" data-testid={`kpi-${k.label.toLowerCase().replace(/\s/g, "-")}`}>
+            <div className="flex items-start justify-between mb-2 sm:mb-3">
+              <span className="text-[10px] sm:text-[11px] uppercase tracking-wider font-semibold text-[#86868B]">{k.label}</span>
+              <k.icon className="w-4 h-4 text-[#A1A1A6] shrink-0" strokeWidth={1.5} />
             </div>
             {loading ? (
-              <Skeleton className="h-8 w-24" />
+              <Skeleton className="h-7 sm:h-8 w-20 sm:w-24" />
             ) : (
               <div className="tabular-nums">
-                <div className={`text-2xl font-semibold tracking-tight ${k.isNet && k.value < 0 ? "text-[#D92D20]" : "text-[#1D1D1F]"}`}>
+                <div className={`text-lg sm:text-2xl font-semibold tracking-tight ${k.isNet && k.value < 0 ? "text-[#D92D20]" : "text-[#1D1D1F]"}`}>
                   {fmtUSD(k.value)}
                 </div>
                 {k.count !== null && (
-                  <div className="mt-0.5 text-xs text-[#86868B]">{k.count || 0} kayıt</div>
+                  <div className="mt-0.5 text-[10px] sm:text-xs text-[#86868B]">{k.count || 0} kayıt</div>
                 )}
               </div>
             )}
@@ -100,7 +100,7 @@ export default function Dashboard() {
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card className="lg:col-span-2 p-6">
+        <Card className="lg:col-span-2 p-4 sm:p-6">
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="text-base font-medium text-[#1D1D1F]">Nakit Akışı</h3>
@@ -133,7 +133,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="text-base font-medium text-[#1D1D1F] mb-1">Gemi Bazında Borç</h3>
           <p className="text-xs text-[#86868B] mb-4">Açık toplam (USD)</p>
           <ResponsiveContainer width="100%" height={260}>
@@ -162,7 +162,7 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="text-base font-medium text-[#1D1D1F] mb-1">Şirket Bazında Ödeme</h3>
           <p className="text-xs text-[#86868B] mb-4">Tüm zamanlar (USD)</p>
           <ResponsiveContainer width="100%" height={240}>
@@ -180,7 +180,7 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="text-base font-medium text-[#1D1D1F] mb-1">Masraf Türü Dağılımı</h3>
           <p className="text-xs text-[#86868B] mb-4">Toplam borç (USD)</p>
           <div className="space-y-2">
@@ -202,7 +202,7 @@ export default function Dashboard() {
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-4 sm:p-6">
           <h3 className="text-base font-medium text-[#1D1D1F] mb-1">TCMB Kurları</h3>
           <p className="text-xs text-[#86868B] mb-4">Güncel</p>
           <div className="space-y-2.5">
@@ -219,7 +219,7 @@ export default function Dashboard() {
       {/* Bottom row: Upcoming + Recent */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card className="overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
             <div>
               <h3 className="text-base font-medium text-[#1D1D1F]">Vadesi Yaklaşan</h3>
               <p className="text-xs text-[#86868B] mt-0.5">Sonraki 30 gün</p>
@@ -228,10 +228,10 @@ export default function Dashboard() {
           </div>
           <div className="divide-y divide-[#F5F5F7]">
             {upcoming.length === 0 && (
-              <div className="px-6 py-12 text-center text-sm text-[#86868B]">Yaklaşan borç yok</div>
+              <div className="px-4 sm:px-6 py-12 text-center text-sm text-[#86868B]">Yaklaşan borç yok</div>
             )}
             {upcoming.slice(0, 8).map((p, i) => (
-              <div key={i} className="px-6 py-3 flex items-center justify-between hover:bg-[#FAFAFA] transition" data-testid={`upcoming-${i}`}>
+              <div key={i} className="px-4 sm:px-6 py-3 flex items-center justify-between hover:bg-[#FAFAFA] transition" data-testid={`upcoming-${i}`}>
                 <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium text-[#1D1D1F] truncate">{p.vendor || "—"}</div>
                   <div className="text-xs text-[#86868B] truncate">{p.description || p.ship || ""} · {fmtDate(p.due_date)}</div>
@@ -246,7 +246,7 @@ export default function Dashboard() {
         </Card>
 
         <Card className="overflow-hidden">
-          <div className="px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-[#E5E5EA]/50 flex items-center justify-between">
             <div>
               <h3 className="text-base font-medium text-[#1D1D1F]">Son Hareketler</h3>
               <p className="text-xs text-[#86868B] mt-0.5">Ödemeler & Tahsilatlar</p>
@@ -255,10 +255,10 @@ export default function Dashboard() {
           </div>
           <div className="divide-y divide-[#F5F5F7]">
             {recent.length === 0 && (
-              <div className="px-6 py-12 text-center text-sm text-[#86868B]">Henüz hareket yok</div>
+              <div className="px-4 sm:px-6 py-12 text-center text-sm text-[#86868B]">Henüz hareket yok</div>
             )}
             {recent.map((p, i) => (
-              <div key={i} className="px-6 py-3 flex items-center justify-between hover:bg-[#FAFAFA] transition">
+              <div key={i} className="px-4 sm:px-6 py-3 flex items-center justify-between hover:bg-[#FAFAFA] transition">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <StatusBadge value={p.type}/>
