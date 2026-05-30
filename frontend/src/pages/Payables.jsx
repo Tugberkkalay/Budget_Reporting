@@ -379,17 +379,17 @@ const AttachmentsBlock = ({ resource, resourceId }) => {
   };
 
   const downloadFile = (id, name) => {
-    const BACKEND = process.env.REACT_APP_BACKEND_URL;
-    const token = localStorage.getItem("ey_token");
-    // Token'lı download için fetch + blob
-    fetch(`${BACKEND}/api/uploads/${id}`, { headers: { Authorization: `Bearer ${token}` }, credentials: "include" })
-      .then(r => r.blob())
-      .then(blob => {
+    api.get(`/uploads/${id}`, { responseType: "blob" })
+      .then((response) => {
+        const blob = response.data;
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; a.download = name; a.click();
+        a.href = url;
+        a.download = name;
+        a.click();
         URL.revokeObjectURL(url);
-      });
+      })
+      .catch((e) => toast.error(formatApiError(e)));
   };
 
   return (

@@ -102,16 +102,17 @@ export default function Assistant() {
   };
 
   const downloadFromUrl = (url) => {
-    const BACKEND = process.env.REACT_APP_BACKEND_URL;
-    const token = localStorage.getItem("ey_token");
-    fetch(`${BACKEND}${url}`, { headers: { Authorization: `Bearer ${token}` }, credentials: "include" })
-      .then(r => r.blob())
-      .then(blob => {
+    api.get(url, { responseType: "blob" })
+      .then((response) => {
+        const blob = response.data;
         const u = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = u; a.download = "hesap-ozeti.pdf"; a.click();
+        a.href = u;
+        a.download = "hesap-ozeti.pdf";
+        a.click();
         URL.revokeObjectURL(u);
-      });
+      })
+      .catch((e) => toast.error(formatApiError(e)));
   };
 
   const removeSession = async (sid) => {
