@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 resend.api_key = os.environ.get("RESEND_API_KEY", "")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
-SENDER_NAME = os.environ.get("SENDER_NAME", "EY Finans")
+SENDER_NAME = os.environ.get("SENDER_NAME", "MARTI Denizcilik Finans")
 
 
 def _wrap_html(title: str, body_html: str) -> str:
@@ -26,7 +26,7 @@ def _wrap_html(title: str, body_html: str) -> str:
   <tr><td align="center">
     <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="background:#FFFFFF;border-radius:16px;border:1px solid #E5E5EA;overflow:hidden;max-width:600px;width:100%;">
       <tr><td style="padding:32px 40px 16px 40px;">
-        <div style="font-size:14px;font-weight:600;letter-spacing:0.5px;color:#86868B;text-transform:uppercase;">EY Finans</div>
+        <div style="font-size:14px;font-weight:600;letter-spacing:0.5px;color:#86868B;text-transform:uppercase;">MARTI Denizcilik Finans</div>
         <h1 style="margin:8px 0 0 0;font-size:24px;font-weight:600;color:#1D1D1F;letter-spacing:-0.5px;">{title}</h1>
       </td></tr>
       <tr><td style="padding:8px 40px 32px 40px;font-size:15px;line-height:1.6;color:#1D1D1F;">
@@ -34,7 +34,7 @@ def _wrap_html(title: str, body_html: str) -> str:
       </td></tr>
       <tr><td style="padding:20px 40px;background:#F5F5F7;border-top:1px solid #E5E5EA;font-size:12px;color:#86868B;">
         Bu otomatik bir bildirimdir. Yanıtlamayınız.<br/>
-        © EY Finans Platform
+        © MARTI Denizcilik Finans
       </td></tr>
     </table>
   </td></tr>
@@ -91,6 +91,6 @@ async def send_payment_reminder(to_email: str, payable: dict, days_until: int) -
     <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:20px 0;border:1px solid #E5E5EA;border-radius:12px;padding:16px 20px;">
     {rows}
     </table>
-    <p style="color:#86868B;font-size:13px;">EY Finans Platform'dan otomatik gönderildi.</p>
+    <p style="color:#86868B;font-size:13px;">MARTI Denizcilik Finans Platform'dan otomatik gönderildi.</p>
     """
     return await send_email(to_email, f"Vade Hatırlatma: {payable.get('vendor', 'Borç')}", body, "Vade Hatırlatma")

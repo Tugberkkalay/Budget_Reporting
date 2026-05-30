@@ -82,7 +82,7 @@ async def ocr_invoice(file_path: str, mime_type: str = "image/jpeg") -> dict:
 # ============================================================
 # AI Asistan — Function Calling pattern (2-step)
 # ============================================================
-ASSISTANT_SYSTEM = """Sen EY Finans Platformu'nun yapay zeka asistanısın. Türkçe konuş.
+ASSISTANT_SYSTEM = """Sen MARTI Denizcilik Finans Platformu'nun yapay zeka asistanısın. Türkçe konuş.
 
 Bu denizcilik finansman yönetim sisteminde:
 - "Birim/Gemi" = ship (örn: VICTORIA, MORNING, VALENTINA1, CENDA, GEMİ DIŞI)

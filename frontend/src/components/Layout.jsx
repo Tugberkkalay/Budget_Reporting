@@ -56,8 +56,8 @@ export default function Layout() {
         <div className={`h-14 flex items-center ${collapsed ? "justify-center" : "px-5 justify-between"} border-b border-[#E5E5EA]/50`}>
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-[#111111] grid place-items-center text-white text-xs font-semibold">EY</div>
-              <span className="text-sm font-semibold tracking-tight text-[#1D1D1F]">Finans</span>
+              <div className="w-7 h-7 rounded-lg bg-[#111111] grid place-items-center text-white text-xs font-semibold">M</div>
+              <span className="text-sm font-semibold tracking-tight text-[#1D1D1F]">MARTI Finans</span>
             </div>
           )}
           <button

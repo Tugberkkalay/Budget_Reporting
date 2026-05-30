@@ -29,8 +29,8 @@ export default function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-[#111111] grid place-items-center text-white font-semibold">EY</div>
-            <span className="text-xl font-semibold tracking-tight text-[#1D1D1F]">Finans Platform</span>
+            <div className="w-10 h-10 rounded-xl bg-[#111111] grid place-items-center text-white font-semibold text-sm">M</div>
+            <span className="text-xl font-semibold tracking-tight text-[#1D1D1F]">MARTI Finans</span>
           </div>
           <h1 className="text-2xl font-semibold tracking-tight text-[#1D1D1F]">Hoş geldiniz</h1>
           <p className="mt-2 text-sm text-[#86868B]">Hesabınıza giriş yapın</p>
@@ -79,7 +79,7 @@ export default function Login() {
         </form>
 
         <p className="mt-8 text-center text-xs text-[#86868B]">
-          © EY Finans Platform · Borç ve alacak yönetimi
+          © MARTI Denizcilik Finans · Borç ve alacak yönetimi
         </p>
       </div>
     </div>

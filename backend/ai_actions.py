@@ -142,7 +142,7 @@ async def handle_send_summary_email(params: dict, user: dict, background, db) ->
       <tbody>{rows or '<tr><td colspan=4 style=padding:16px;text-align:center;color:#86868B>Kayıt yok</td></tr>'}</tbody>
     </table>
     """
-    background.add_task(send_email, user["email"], f"EY Finans · {label}", body_html, label)
+    background.add_task(send_email, user["email"], f"MARTI Denizcilik · {label}", body_html, label)
     return {"created_id": None, "message": f"✅ {label} özet emaili {user['email']} adresine gönderildi ({len(items)} kayıt, toplam ${total:,.2f})"}
 
 
@@ -343,7 +343,7 @@ async def handle_generate_pdf_statement(params: dict, user: dict, background, db
     # Resend ile attachment (async direct call)
     api_key = os.environ.get("RESEND_API_KEY", "")
     sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
-    sender_name = os.environ.get("SENDER_NAME", "EY Finans")
+    sender_name = os.environ.get("SENDER_NAME", "MARTI Denizcilik Finans")
     if api_key:
         resend.api_key = api_key
         try:
@@ -352,7 +352,7 @@ async def handle_generate_pdf_statement(params: dict, user: dict, background, db
             params_email = {
                 "from": f"{sender_name} <{sender}>",
                 "to": [user["email"]],
-                "subject": f"EY Finans · {title}",
+                "subject": f"MARTI Denizcilik · {title}",
                 "html": body_html,
                 "attachments": [{"filename": pretty_name, "content": attach_b64}],
             }

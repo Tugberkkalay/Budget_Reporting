@@ -35,7 +35,7 @@ def generate_statement_pdf(
     body = ParagraphStyle("body", parent=styles["Normal"], fontName="Helvetica", fontSize=9, leading=13)
 
     flow = []
-    flow.append(Paragraph("EY FINANS PLATFORM", ParagraphStyle("brand", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor("#86868B"), spaceAfter=8)))
+    flow.append(Paragraph("MARTI DENİZCİLİK FİNANS", ParagraphStyle("brand", fontName="Helvetica-Bold", fontSize=9, textColor=colors.HexColor("#86868B"), spaceAfter=8)))
     flow.append(Paragraph(title, h1))
     flow.append(Paragraph(subtitle, sub))
 
@@ -83,7 +83,7 @@ def generate_statement_pdf(
 
     flow.append(Spacer(1, 24))
     flow.append(Paragraph(
-        f"<font color='#86868B' size='7'>Oluşturulma: {datetime.now().strftime('%d.%m.%Y %H:%M')} · EY Finans Platform · Otomatik üretilmiştir</font>",
+        f"<font color='#86868B' size='7'>Oluşturulma: {datetime.now().strftime('%d.%m.%Y %H:%M')} · MARTI Denizcilik Finans · Otomatik üretilmiştir</font>",
         body
     ))
 

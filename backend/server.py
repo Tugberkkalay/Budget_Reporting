@@ -1,4 +1,4 @@
-"""EY Finans Platform — FastAPI backend (modular).
+"""MARTI Denizcilik Finans Platform — FastAPI backend (modular).
 Routers'a ayrıldı: auth, users, master, payables, payments, dashboard,
 accounts, reports, notifications, fx, uploads, ai.
 """
@@ -37,7 +37,7 @@ from routers.ai import router as ai_router
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="EY Finans Platform API")
+app = FastAPI(title="MARTI Denizcilik Finans API")
 api = APIRouter(prefix="/api")
 
 app.add_middleware(
@@ -65,7 +65,7 @@ api.include_router(ai_router)
 
 @api.get("/")
 async def root():
-    return {"name": "EY Finans Platform API", "version": "2.0.0"}
+    return {"name": "MARTI Denizcilik Finans API", "version": "2.0.0"}
 
 
 app.include_router(api)
