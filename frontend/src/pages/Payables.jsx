@@ -7,8 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InlineAddTable, InlineAddToggle, parseMoney, formatMoney } from "@/components/InlineAddTable";
 import { Plus, Search, Filter, ArrowDownToLine, ArrowUpFromLine, Loader2, Trash2, CreditCard, X, Paperclip, Sparkles, FileText, Download } from "lucide-react";
 import { toast } from "sonner";
+
+const ADD_PANEL_ID = "payable-inline-add";
 
 /**
  * Generic Payables/Receivables list page.
@@ -19,11 +22,16 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [addOpen, setAddOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [shipFilter, setShipFilter] = useState("all");
 
   const [masters, setMasters] = useState({ ships: [], vendors: [], expense_types: [], currencies: [], statuses: [], armators: [], companies: [], people: [], countries: [] });
+  const [fxRates, setFxRates] = useState([]);
+  const addPanelRef = useRef(null);
+
+  const kindLabel = kindProp === "PAYABLE" ? "Borç" : "Alacak";
 
   const load = async () => {
     setLoading(true);
@@ -43,18 +51,114 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
 
   useEffect(() => {
     (async () => {
-      const [ships, vendors, expTypes, currencies, statuses, armators, companies, people, countries] = await Promise.all([
+      const [ships, vendors, expTypes, currencies, statuses, armators, companies, people, countries, fx] = await Promise.all([
         api.get("/master/ships"), api.get("/master/vendors"), api.get("/master/expense_types"),
         api.get("/master/currencies"), api.get("/master/payment_statuses"), api.get("/master/armators"),
         api.get("/master/companies"), api.get("/master/people"), api.get("/master/countries"),
+        api.get("/fx/latest"),
       ]);
       setMasters({
         ships: ships.data, vendors: vendors.data, expense_types: expTypes.data,
         currencies: currencies.data, statuses: statuses.data, armators: armators.data,
         companies: companies.data, people: people.data, countries: countries.data,
       });
+      setFxRates(fx.data);
     })();
   }, []);
+
+  /** Tutarı güncel TCMB kurlarıyla USD'ye çevirir. */
+  const toUsd = (amount, code) => {
+    if (!amount) return 0;
+    if (!code || code === "USD") return amount;
+    const from = fxRates.find((c) => c.code === code);
+    const usd = fxRates.find((c) => c.code === "USD");
+    if (!from?.rate_to_tl || !usd?.rate_to_tl) return 0;
+    return (amount * from.rate_to_tl) / usd.rate_to_tl;
+  };
+
+  const addRowTemplate = useMemo(() => ({
+    order_date: "",
+    due_date: "",
+    vendor: "",
+    ship: "",
+    armator: "",
+    expense_type: "",
+    expense_code: "",
+    country: "",
+    description: "",
+    original_amount: "",
+    currency: "USD",
+    usd_amount: "",
+    status: "ONAY BEKLİYOR",
+  }), []);
+
+  const addColumns = useMemo(() => [
+    { key: "order_date", label: "Sipariş Tarihi", type: "date", width: 132 },
+    { key: "due_date", label: "Vade Tarihi", type: "date", required: true, width: 132, minFrom: "order_date" },
+    { key: "vendor", label: "Tedarikçi / Firma", type: "select", width: 200, options: masters.vendors.map((v) => v.name) },
+    { key: "ship", label: "Gemi / Birim", type: "select", width: 160, options: masters.ships.map((s) => s.name) },
+    { key: "armator", label: "Armatör", type: "select", width: 160, options: masters.armators.map((a) => a.name) },
+    { key: "expense_type", label: "Masraf Türü", type: "select", width: 170, options: masters.expense_types.map((e) => e.name) },
+    { key: "country", label: "Ülke", type: "select", width: 150, options: masters.countries.map((c) => c.name) },
+    { key: "description", label: "Açıklama", type: "text", placeholder: "Açıklama giriniz…", width: 200 },
+    { key: "original_amount", label: "Tutar", type: "money", required: true, width: 130 },
+    { key: "currency", label: "Para Birimi", type: "select", searchable: false, width: 120, options: masters.currencies.map((c) => c.code) },
+    { key: "usd_amount", label: "USD Karşılığı", type: "money", width: 130 },
+    { key: "status", label: "Durum", type: "select", searchable: false, width: 160, options: masters.statuses.map((s) => s.name) },
+  ], [masters]);
+
+  /** Vade tarihi en erken sipariş tarihi olabilir. */
+  const validateAddRow = (row) => (
+    row.order_date && row.due_date && row.due_date < row.order_date
+      ? { due_date: "Vade tarihi sipariş tarihinden önce olamaz" }
+      : {}
+  );
+
+  /** Masraf kodunu masraf türünden, USD karşılığını tutar/para biriminden türetir. */
+  const onAddRowChange = ({ row, key, touched }) => {
+    if (key === "expense_type") {
+      return { expense_code: masters.expense_types.find((e) => e.name === row.expense_type)?.code || "" };
+    }
+    if ((key === "original_amount" || key === "currency") && !touched.usd_amount) {
+      const amount = parseMoney(row.original_amount);
+      return { usd_amount: amount ? formatMoney(toUsd(amount, row.currency)) : "" };
+    }
+    return null;
+  };
+
+  const saveNewRows = async (rows) => {
+    const results = await Promise.allSettled(rows.map((r) => {
+      const amount = parseMoney(r.original_amount);
+      const usd = parseMoney(r.usd_amount);
+      return api.post("/payables", {
+        kind: kindProp,
+        order_date: r.order_date || null,
+        due_date: r.due_date,
+        vendor: r.vendor || null,
+        ship: r.ship || null,
+        armator: r.armator || null,
+        expense_type: r.expense_type || null,
+        expense_code: r.expense_code || null,
+        country: r.country || null,
+        description: r.description.trim() || null,
+        original_amount: amount,
+        currency: r.currency,
+        usd_amount: usd || toUsd(amount, r.currency),
+        status: r.status,
+      });
+    }));
+
+    const failed = rows.filter((_, i) => results[i].status === "rejected").map((r) => r._id);
+    const savedCount = rows.length - failed.length;
+    if (savedCount > 0) {
+      toast.success(`${savedCount} ${kindLabel.toLowerCase()} kaydı eklendi`);
+      load();
+    }
+    if (failed.length) {
+      toast.error(formatApiError(results.find((r) => r.status === "rejected").reason));
+    }
+    return { failed };
+  };
 
   const summary = useMemo(() => {
     const total = items.reduce((s, i) => s + (i.usd_amount || 0), 0);
@@ -62,7 +166,6 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
     return { total, open, count: items.length };
   }, [items]);
 
-  const openCreate = () => { setEditing({ kind: kindProp, currency: "USD", status: "ONAY BEKLİYOR" }); setOpen(true); };
   const openEdit = (item) => { setEditing(item); setOpen(true); };
 
   const save = async () => {
@@ -90,11 +193,34 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
       title={title}
       subtitle={`${summary.count} kayıt · Açık: ${fmtUSD(summary.open)}`}
       actions={
-        <Button data-testid="btn-new-payable" onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white gap-1.5 rounded-lg h-9">
-          <Plus className="w-4 h-4"/> Yeni {kindProp === "PAYABLE" ? "Borç" : "Alacak"}
-        </Button>
+        <InlineAddToggle
+          testId="btn-new-payable"
+          open={addOpen}
+          onToggle={() => (addOpen ? addPanelRef.current?.requestClose() : setAddOpen(true))}
+          label={`${kindLabel} Ekle`}
+          controls={ADD_PANEL_ID}
+        />
       }
     >
+      {/* Inline ekleme tablosu — başlık ile filtreler arasında açılır */}
+      <InlineAddTable
+        ref={addPanelRef}
+        id={ADD_PANEL_ID}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        columns={addColumns}
+        rowTemplate={addRowTemplate}
+        onSave={saveNewRows}
+        onRowChange={onAddRowChange}
+        validateRow={validateAddRow}
+        storageKey={`marti:draft:payables:${kindProp}`}
+        onDraftRestored={() => setAddOpen(true)}
+        saveLabel={`${kindLabel}ları Kaydet`}
+        regionLabel={`Yeni ${kindLabel} ekleme tablosu`}
+        minTableWidth={1920}
+        testIdPrefix="payable-add"
+      />
+
       {/* Filters */}
       <Card className="p-4 mb-4 flex gap-3 items-center flex-wrap">
         <div className="relative flex-1 min-w-[240px]">
@@ -132,8 +258,8 @@ export default function PayablesPage({ kindProp = "PAYABLE", title = "Borçlar" 
           <EmptyState
             icon={kindProp === "PAYABLE" ? ArrowDownToLine : ArrowUpFromLine}
             title="Henüz kayıt yok"
-            message="Yeni bir borç ekleyerek başlayabilirsiniz."
-            action={<Button onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg gap-1.5"><Plus className="w-4 h-4"/>Yeni Ekle</Button>}
+            message={`Yeni bir ${kindLabel.toLowerCase()} ekleyerek başlayabilirsiniz.`}
+            action={<Button onClick={() => setAddOpen(true)} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg gap-1.5"><Plus className="w-4 h-4"/>Yeni Ekle</Button>}
           />
         ) : (
           <div className="overflow-x-auto">
