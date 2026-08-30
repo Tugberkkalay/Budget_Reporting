@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, fmtUSD, fmtDate, formatApiError } from "@/lib/api";
 import { Page, Card, StatusBadge, EmptyState } from "@/components/Primitives";
 import { Button } from "@/components/ui/button";
@@ -7,8 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { InlineAddTable, InlineAddToggle, parseMoney, formatMoney } from "@/components/InlineAddTable";
 import { Plus, Search, CreditCard, Trash2, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
 import { toast } from "sonner";
+
+const ADD_PANEL_ID = "payment-inline-add";
 
 export default function Payments() {
   const [items, setItems] = useState([]);
@@ -18,7 +21,10 @@ export default function Payments() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [bankFilter, setBankFilter] = useState("all");
+  const [addOpen, setAddOpen] = useState(false);
   const [masters, setMasters] = useState({ banks: [], vendors: [], ships: [], companies: [], currencies: [], paymentMethods: [] });
+  const [fxRates, setFxRates] = useState([]);
+  const addPanelRef = useRef(null);
 
   const load = async () => {
     setLoading(true);
@@ -38,13 +44,103 @@ export default function Payments() {
 
   useEffect(() => {
     (async () => {
-      const [banks, vendors, ships, companies, currencies, methods] = await Promise.all([
+      const [banks, vendors, ships, companies, currencies, methods, fx] = await Promise.all([
         api.get("/master/banks"), api.get("/master/vendors"), api.get("/master/ships"),
         api.get("/master/companies"), api.get("/master/currencies"), api.get("/master/payment_methods"),
+        api.get("/fx/latest"),
       ]);
       setMasters({ banks: banks.data, vendors: vendors.data, ships: ships.data, companies: companies.data, currencies: currencies.data, paymentMethods: methods.data });
+      setFxRates(fx.data);
     })();
   }, []);
+
+  const fxRateOf = (code) => {
+    if (!code || code === "TL") return 1;
+    return fxRates.find((c) => c.code === code)?.rate_to_tl || 0;
+  };
+
+  /** Tutarı güncel TCMB kurlarıyla USD'ye çevirir. */
+  const toUsd = (amount, code) => {
+    if (!amount) return 0;
+    if (!code || code === "USD") return amount;
+    const usdRate = fxRates.find((c) => c.code === "USD")?.rate_to_tl;
+    const rate = fxRateOf(code);
+    if (!rate || !usdRate) return 0;
+    return (amount * rate) / usdRate;
+  };
+
+  const addRowTemplate = useMemo(() => ({
+    type: "TEDİYE",
+    date: new Date().toISOString().slice(0, 10),
+    vendor: "",
+    description: "",
+    paying_company: "",
+    payment_method: "",
+    ship: "",
+    amount: "",
+    currency: "USD",
+    fx_rate: "",
+    usd_amount: "",
+  }), []);
+
+  const addColumns = useMemo(() => [
+    { key: "type", label: "Tip", type: "select", searchable: false, required: true, width: 130, options: ["TEDİYE", "TAHSİL"] },
+    { key: "date", label: "Tarih", type: "date", required: true, width: 132 },
+    { key: "vendor", label: "Firma", type: "select", width: 200, options: masters.vendors.map((v) => v.name) },
+    { key: "description", label: "Açıklama", type: "text", placeholder: "Açıklama giriniz…", width: 200 },
+    { key: "paying_company", label: "Şirket", type: "select", searchable: false, width: 150, options: masters.companies.map((c) => c.name) },
+    { key: "payment_method", label: "Hesap / Banka", type: "select", width: 170, options: masters.banks.map((b) => b.name) },
+    { key: "ship", label: "Gemi / Birim", type: "select", width: 160, options: masters.ships.map((s) => s.name) },
+    { key: "amount", label: "Tutar", type: "money", required: true, width: 130 },
+    { key: "currency", label: "Döviz", type: "select", searchable: false, width: 110, options: masters.currencies.map((c) => c.code) },
+    { key: "fx_rate", label: "Kur", type: "money", decimals: 4, width: 120 },
+    { key: "usd_amount", label: "USD Karşılığı", type: "money", width: 130 },
+  ], [masters]);
+
+  /** Kur ve USD karşılığını dövize/tutara göre türetir; elle girilen değeri ezmez. */
+  const onAddRowChange = ({ row, key, touched }) => {
+    if (key !== "amount" && key !== "currency" && key !== "fx_rate") return null;
+    const patch = {};
+    if (key === "currency" && !touched.fx_rate) {
+      patch.fx_rate = formatMoney(fxRateOf(row.currency), 4);
+    }
+    if (!touched.usd_amount) {
+      const amount = parseMoney(row.amount);
+      patch.usd_amount = amount ? formatMoney(toUsd(amount, row.currency)) : "";
+    }
+    return Object.keys(patch).length ? patch : null;
+  };
+
+  const saveNewRows = async (rows) => {
+    const results = await Promise.allSettled(rows.map((r) => {
+      const amount = parseMoney(r.amount);
+      const usd = parseMoney(r.usd_amount);
+      return api.post("/payments", {
+        type: r.type,
+        date: r.date,
+        vendor: r.vendor || null,
+        description: r.description.trim() || null,
+        paying_company: r.paying_company || null,
+        payment_method: r.payment_method || null,
+        ship: r.ship || null,
+        amount,
+        currency: r.currency,
+        fx_rate: parseMoney(r.fx_rate) || fxRateOf(r.currency),
+        usd_amount: usd || toUsd(amount, r.currency),
+      });
+    }));
+
+    const failed = rows.filter((_, i) => results[i].status === "rejected").map((r) => r._id);
+    const savedCount = rows.length - failed.length;
+    if (savedCount > 0) {
+      toast.success(`${savedCount} hareket kaydedildi`);
+      load();
+    }
+    if (failed.length) {
+      toast.error(formatApiError(results.find((r) => r.status === "rejected").reason));
+    }
+    return { failed };
+  };
 
   const summary = useMemo(() => {
     const tediye = items.filter(i => i.type === "TEDİYE").reduce((s, i) => s + (i.usd_amount || 0), 0);
@@ -52,10 +148,6 @@ export default function Payments() {
     return { tediye, tahsil, count: items.length };
   }, [items]);
 
-  const openCreate = () => {
-    setEditing({ type: "TEDİYE", date: new Date().toISOString().slice(0, 10), currency: "USD", fx_rate: 1, amount: 0, usd_amount: 0 });
-    setOpen(true);
-  };
   const openEdit = (item) => { setEditing(item); setOpen(true); };
 
   const save = async () => {
@@ -82,11 +174,33 @@ export default function Payments() {
       title="Ödemeler"
       subtitle={`${summary.count} hareket · Tediye ${fmtUSD(summary.tediye)} · Tahsil ${fmtUSD(summary.tahsil)}`}
       actions={
-        <Button data-testid="btn-new-payment" onClick={openCreate} className="bg-[#111111] hover:bg-[#2C2C2E] text-white gap-1.5 rounded-lg h-9">
-          <Plus className="w-4 h-4"/> Yeni Hareket
-        </Button>
+        <InlineAddToggle
+          testId="btn-new-payment"
+          open={addOpen}
+          onToggle={() => (addOpen ? addPanelRef.current?.requestClose() : setAddOpen(true))}
+          label="Ödeme Ekle"
+          controls={ADD_PANEL_ID}
+        />
       }
     >
+      {/* Inline ekleme tablosu — başlık ile filtreler arasında açılır */}
+      <InlineAddTable
+        ref={addPanelRef}
+        id={ADD_PANEL_ID}
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        columns={addColumns}
+        rowTemplate={addRowTemplate}
+        onSave={saveNewRows}
+        onRowChange={onAddRowChange}
+        storageKey="marti:draft:payments"
+        onDraftRestored={() => setAddOpen(true)}
+        saveLabel="Ödemeleri Kaydet"
+        regionLabel="Yeni ödeme ekleme tablosu"
+        minTableWidth={1700}
+        testIdPrefix="payment-add"
+      />
+
       <Card className="p-4 mb-4 flex gap-3 items-center flex-wrap">
         <div className="relative flex-1 min-w-[240px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#86868B]"/>
@@ -113,7 +227,12 @@ export default function Payments() {
         {loading ? (
           <div className="p-6 space-y-3">{[...Array(6)].map((_, i) => <div key={i} className="skeleton h-10 w-full"/>)}</div>
         ) : items.length === 0 ? (
-          <EmptyState icon={CreditCard} title="Henüz hareket yok" message="Tediye veya tahsil hareketi ekleyebilirsiniz."/>
+          <EmptyState
+            icon={CreditCard}
+            title="Henüz hareket yok"
+            message="Tediye veya tahsil hareketi ekleyebilirsiniz."
+            action={<Button onClick={() => setAddOpen(true)} className="bg-[#111111] hover:bg-[#2C2C2E] text-white rounded-lg gap-1.5"><Plus className="w-4 h-4"/>Yeni Ekle</Button>}
+          />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
